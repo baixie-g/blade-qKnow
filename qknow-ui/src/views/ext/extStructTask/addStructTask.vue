@@ -178,15 +178,7 @@
     });
 
     function getDataSourceList() {
-        // listDatasource().then(res => {
-        //     dataSourceList.value = res.data.list
-        //     // 默认选中第一个选项
-        //     if (res.data.list.length > 0) {
-        //         form.value.dataSourceId = res.data.list[0].id;
-        //     }
-        //     console.log('============>', res)
-        // })
-        listDaDatasource().then(res => {
+        listDatasource().then(res => {
             dataSourceList.value = res.data.list
             // 默认选中第一个选项
             if (res.data.list.length > 0) {
@@ -194,6 +186,14 @@
             }
             console.log('============>', res)
         })
+        // listDaDatasource().then(res => {
+        //     dataSourceList.value = res.data.list
+        //     // 默认选中第一个选项
+        //     if (res.data.list.length > 0) {
+        //         form.value.dataSourceId = res.data.list[0].id;
+        //     }
+        //     console.log('============>', res)
+        // })
     }
 
     /** 打开导入表弹窗 */
@@ -213,12 +213,17 @@
      */
     function testConnection() {
         console.log('-------form-', form.value.dataSourceId)
-        clientsTest(form.value.dataSourceId).then(res=>{
+        getTestConnection(form.value.dataSourceId).then(res=>{
             if (res && res.code == 200) {
                 connectionSuccess.value = true
+                proxy.$modal.msgSuccess("数据库连接成功");
             } else {
                 connectionError.value = true
+                proxy.$modal.msgError(res.msg || "数据库连接失败");
             }
+        }).catch(error => {
+            connectionError.value = true
+            proxy.$modal.msgError("数据库连接失败：" + (error.message || "未知错误"));
         })
     }
 

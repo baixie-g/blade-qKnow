@@ -126,7 +126,7 @@
 
 <script setup name="addStructTask">
     import {ref} from "vue";
-    // import {listDatasource, getTestConnection} from "@/api/ext/extDatasource/datasource"
+    import {listDatasource, getTestConnection} from "@/api/ext/extDatasource/datasource"
     import { listDaDatasource, clientsTest } from "@/api/da/datasource/daDatasource";
     import {updateExtStructDataMapping, getExtStruct} from "@/api/ext/extStructTask/extStruct"
     // import {getTableList} from "@/api/ext/extDatasource/datasource";
@@ -338,21 +338,17 @@
      */
     function testConnection() {
         console.log('-------form-', form.value.dataSourceId)
-        // getTestConnection(form.value.dataSourceId).then(res => {
-        //     if (res && res.code == 200) {
-        //         connectionSuccess.value = true
-        //     } else {
-        //         connectionError.value = true
-        //     }
-        // }).catch(res => {
-        //     connectionError.value = true
-        // })
-        clientsTest(form.value.dataSourceId).then(res=>{
+        getTestConnection(form.value.dataSourceId).then(res=>{
             if (res && res.code == 200) {
                 connectionSuccess.value = true
+                proxy.$modal.msgSuccess("数据库连接成功");
             } else {
                 connectionError.value = true
+                proxy.$modal.msgError(res.msg || "数据库连接失败");
             }
+        }).catch(error => {
+            connectionError.value = true
+            proxy.$modal.msgError("数据库连接失败：" + (error.message || "未知错误"));
         })
     }
 

@@ -29,7 +29,7 @@ public class EmbeddedRedisConfig {
     @PostConstruct
     public void startRedis() throws IOException, InterruptedException {
         if ("dev".equals(active)) {
-            int redisPort = 12138;
+            int redisPort = 6379;
             if (isPortAvailable(redisPort)) {
                 redisServer = new RedisServer(redisPort);
 

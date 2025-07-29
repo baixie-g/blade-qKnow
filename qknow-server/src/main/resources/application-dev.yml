@@ -7,9 +7,9 @@ spring:
   # redis 配置
   redis:
     # 地址
-    host: 127.0.0.1
+    host: 47.105.115.60
     # 端口，默认为6379
-    port: 12138
+    port: 6379
     # 数据库索引
     database: 0
     # 密码
@@ -93,7 +93,7 @@ mysql:
   # 主库用户名
   username: root
   # 主库密码
-  password:
+  password: 123456
 
 # 达梦配置文件
 dm8:

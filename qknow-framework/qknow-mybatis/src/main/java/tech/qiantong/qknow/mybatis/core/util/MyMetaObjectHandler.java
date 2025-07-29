@@ -1,6 +1,7 @@
 package tech.qiantong.qknow.mybatis.core.util;
 
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
+import lombok.var;
 import org.apache.ibatis.reflection.MetaObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,9 +33,13 @@ public class MyMetaObjectHandler implements MetaObjectHandler {
         boolean HasUpdateBy = metaObject.hasSetter("updateBy");
         LoginUser loginUser = null;
         try {
-            loginUser = (LoginUser) SecurityUtils.getAuthentication().getPrincipal();
+            // 先检查 Authentication 是否为 null
+            var authentication = SecurityUtils.getAuthentication();
+            if (authentication != null && authentication.getPrincipal() != null) {
+                loginUser = (LoginUser) authentication.getPrincipal();
+            }
         } catch (Exception e) {
-            logger.info("获取用户信息异常:{}", e);
+            logger.info("获取用户信息异常:{}", e.getMessage());
         }
         if (loginUser != null) {
             if (hasCreatorId) {
@@ -67,9 +72,13 @@ public class MyMetaObjectHandler implements MetaObjectHandler {
 
         LoginUser loginUser = null;
         try {
-            loginUser = (LoginUser) SecurityUtils.getAuthentication().getPrincipal();
+            // 先检查 Authentication 是否为 null
+            var authentication = SecurityUtils.getAuthentication();
+            if (authentication != null && authentication.getPrincipal() != null) {
+                loginUser = (LoginUser) authentication.getPrincipal();
+            }
         } catch (Exception e) {
-            logger.info("获取用户信息异常:{}", e);
+            logger.info("获取用户信息异常:{}", e.getMessage());
         }
         if (loginUser != null) {
             if (hasUpdatorId) {
