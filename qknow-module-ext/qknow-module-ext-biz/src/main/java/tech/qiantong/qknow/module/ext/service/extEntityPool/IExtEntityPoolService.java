@@ -107,6 +107,16 @@ public interface IExtEntityPoolService {
     AjaxResult processEntity(Long id, Integer status, String remark);
 
     /**
+     * 批量处理实体（确认或拒绝）
+     *
+     * @param idList 实体ID列表
+     * @param status 处理状态 1：已确认，2：已拒绝
+     * @param remark 处理备注
+     * @return 处理结果
+     */
+    AjaxResult batchProcessEntities(List<Long> idList, Integer status, String remark);
+
+    /**
      * 实体消歧 - 获取候选实体
      *
      * @param entityPoolId 实体池ID
@@ -124,4 +134,13 @@ public interface IExtEntityPoolService {
      * @return 处理结果
      */
     AjaxResult confirmDisambiguation(Long entityPoolId, String candidateId, String remark);
+
+    /**
+     * 根据实体ID查询实体池记录
+     *
+     * @param entityId 实体ID
+     * @param taskId 任务ID
+     * @return 实体池记录
+     */
+    ExtEntityPoolDO getEntityByEntityId(String entityId, Long taskId);
 } 

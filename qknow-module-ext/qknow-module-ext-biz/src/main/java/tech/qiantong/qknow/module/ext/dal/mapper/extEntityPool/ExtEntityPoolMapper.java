@@ -39,6 +39,15 @@ public interface ExtEntityPoolMapper extends BaseMapperX<ExtEntityPoolDO> {
     List<ExtEntityPoolDO> selectList(ExtEntityPoolPageReqVO pageReqVO);
 
     /**
+     * 根据实体ID和任务ID查询实体池记录
+     *
+     * @param entityId 实体ID
+     * @param taskId 任务ID
+     * @return 实体池记录
+     */
+    ExtEntityPoolDO selectByEntityId(@Param("entityId") String entityId, @Param("taskId") Long taskId);
+
+    /**
      * 分页查询实体池
      *
      * @param reqVO 查询条件
@@ -46,7 +55,7 @@ public interface ExtEntityPoolMapper extends BaseMapperX<ExtEntityPoolDO> {
      */
     default PageResult<ExtEntityPoolDO> selectPage(ExtEntityPoolPageReqVO reqVO) {
         // 定义排序的字段（防止 SQL 注入，与数据库字段名称一致）
-        Set<String> allowedColumns = new HashSet<>(Arrays.asList("id", "create_time", "update_time"));
+        Set<String> allowedColumns = new HashSet<>(Arrays.asList("id", "create_time", "update_time", "entity_name", "entity_type", "status"));
 
         // 构造动态查询条件
         return selectPage(reqVO, new LambdaQueryWrapperX<ExtEntityPoolDO>()
@@ -59,13 +68,4 @@ public interface ExtEntityPoolMapper extends BaseMapperX<ExtEntityPoolDO> {
                 .betweenIfPresent(ExtEntityPoolDO::getCreateTime, reqVO.getCreateTimeStart(), reqVO.getCreateTimeEnd())
                 .orderBy(reqVO.getOrderByColumn(), reqVO.getIsAsc(), allowedColumns));
     }
-
-    /**
-     * 根据实体ID和任务ID查询实体
-     *
-     * @param entityId 实体ID
-     * @param taskId 任务ID
-     * @return 实体池对象
-     */
-    ExtEntityPoolDO selectByEntityId(@Param("entityId") String entityId, @Param("taskId") Long taskId);
 } 

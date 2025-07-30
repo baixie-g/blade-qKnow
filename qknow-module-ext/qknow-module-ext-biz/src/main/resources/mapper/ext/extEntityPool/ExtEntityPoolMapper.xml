@@ -21,14 +21,19 @@
         <result column="process_remark" property="processRemark"/>
         <result column="valid_flag" property="validFlag"/>
         <result column="del_flag" property="delFlag"/>
+        <result column="create_by" property="createBy"/>
+        <result column="creator_id" property="creatorId"/>
         <result column="create_time" property="createTime"/>
+        <result column="update_by" property="updateBy"/>
+        <result column="updater_id" property="updaterId"/>
         <result column="update_time" property="updateTime"/>
+        <result column="remark" property="remark"/>
     </resultMap>
 
     <sql id="Base_Column_List">
         id, workspace_id, task_id, doc_id, paragraph_index, entity_id, entity_name, entity_type,
-        aliases, definition, attributes, status, process_time, process_by, process_remark,
-        valid_flag, del_flag, create_time, update_time
+        aliases, definition, attributes, status, process_time, processor_id, process_by, process_remark,
+        valid_flag, del_flag, create_by, creator_id, create_time, update_by, updater_id, update_time, remark
     </sql>
 
     <select id="selectList" parameterType="tech.qiantong.qknow.module.ext.controller.admin.extEntityPool.vo.ExtEntityPoolPageReqVO" resultMap="BaseResultMap">

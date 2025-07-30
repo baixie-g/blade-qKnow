@@ -1,13 +1,24 @@
-# 非结构化抽取方式选择：deepke或者model。注：type参数请选择deepke，开源版本暂未支持大模型抽取，如有需要请咨询相关管理人员
-unstruct:
-  type: deepke
+# 实体消歧API配置
+disambiguation:
+  api:
+    url: http://localhost:8002/match-candidates
+    timeout: 10000
+    retry-count: 3
 
 # 抽取API配置
 extraction:
   api:
     url: http://127.0.0.1:8000/extract
+    timeout: 30000
+    retry-count: 3
 
-# 实体消歧API配置
-disambiguation:
-  api:
-    url: http://localhost:8002/match-candidates
+# 非结构化抽取类型配置
+unstruct:
+  type: deepke  # deepke 或 model
+
+# Neo4j配置
+neo4j:
+  labels:
+    unstructured: ExtUnStruck
+    structured: ExtStruck
+    dynamic-entity: DynamicEntity

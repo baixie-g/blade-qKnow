@@ -24,4 +24,6 @@ public interface ExtEntityPoolConvert {
 
     List<ExtEntityPoolRespVO> convertList(List<ExtEntityPoolDO> list);
 
+    ExtEntityPoolDO convert(ExtEntityPoolRespVO bean);
+
 } 

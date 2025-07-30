@@ -109,4 +109,23 @@ public interface IExtRelationshipPoolService {
      * @return 关系列表
      */
     List<ExtRelationshipPoolDO> getRelationshipsByEntityId(String entityId, Long taskId);
+
+    /**
+     * 批量处理关系（确认或拒绝）
+     *
+     * @param idList 关系ID列表
+     * @param status 处理状态 1：已确认，2：已拒绝
+     * @param remark 处理备注
+     * @return 处理结果
+     */
+    AjaxResult batchProcessRelationships(List<Long> idList, Integer status, String remark);
+
+    /**
+     * 根据关系ID和任务ID查询关系池记录
+     *
+     * @param relationshipId 关系ID
+     * @param taskId 任务ID
+     * @return 关系池记录
+     */
+    ExtRelationshipPoolDO getRelationshipById(String relationshipId, Long taskId);
 } 

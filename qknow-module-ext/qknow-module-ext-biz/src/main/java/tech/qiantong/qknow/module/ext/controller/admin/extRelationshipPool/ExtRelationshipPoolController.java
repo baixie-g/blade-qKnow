@@ -2,6 +2,7 @@ package tech.qiantong.qknow.module.ext.controller.admin.extRelationshipPool;
 
 import cn.hutool.core.date.DateUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -207,5 +208,60 @@ public class ExtRelationshipPoolController extends BaseController {
                                                    @RequestParam("status") Integer status,
                                                    @RequestParam(value = "remark", required = false) String remark) {
         return CommonResult.success(extRelationshipPoolService.processRelationship(id, status, remark));
+    }
+
+    /**
+     * 批量处理关系（确认或拒绝）
+     *
+     * @param idList 关系ID列表
+     * @param status 处理状态 1：已确认，2：已拒绝
+     * @param remark 处理备注
+     * @return 处理结果
+     */
+    @PostMapping("/batch-process")
+    @Operation(summary = "批量处理关系")
+    @PreAuthorize("@ss.hasPermi('ext:extRelationshipPool:process')")
+    public CommonResult<AjaxResult> batchProcessRelationships(
+            @RequestParam("idList") List<Long> idList,
+            @RequestParam("status") Integer status,
+            @RequestParam(value = "remark", required = false) String remark) {
+        AjaxResult result = extRelationshipPoolService.batchProcessRelationships(idList, status, remark);
+        return CommonResult.success(result);
+    }
+
+    /**
+     * 根据实体ID查询相关关系
+     *
+     * @param entityId 实体ID
+     * @param taskId 任务ID
+     * @return 关系列表
+     */
+    @GetMapping("/by-entity")
+    @Operation(summary = "根据实体ID查询相关关系")
+    @PreAuthorize("@ss.hasPermi('ext:extRelationshipPool:query')")
+    public CommonResult<List<ExtRelationshipPoolDO>> getRelationshipsByEntityId(
+            @RequestParam("entityId") String entityId,
+            @RequestParam("taskId") Long taskId) {
+        List<ExtRelationshipPoolDO> relationships = extRelationshipPoolService.getRelationshipsByEntityId(entityId, taskId);
+        return CommonResult.success(relationships);
+    }
+
+    /**
+     * 导入关系池数据
+     *
+     * @param importExcelList 导入数据列表
+     * @param updateSupport 是否更新支持
+     * @param operName 操作用户
+     * @return 导入结果
+     */
+    @PostMapping("/import")
+    @Operation(summary = "导入关系池数据")
+    @PreAuthorize("@ss.hasPermi('ext:extRelationshipPool:import')")
+    public CommonResult<String> importExtRelationshipPool(
+            @RequestBody List<ExtRelationshipPoolRespVO> importExcelList,
+            @RequestParam(value = "updateSupport", defaultValue = "false") boolean updateSupport,
+            @RequestParam("operName") String operName) {
+        String result = extRelationshipPoolService.importExtRelationshipPool(importExcelList, updateSupport, operName);
+        return CommonResult.success(result);
     }
 } 
