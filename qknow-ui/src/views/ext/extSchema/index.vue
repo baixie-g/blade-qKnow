@@ -308,6 +308,22 @@ const data = reactive({
 
 const { queryParams, form, rules } = toRefs(data);
 
+/** 生成随机颜色 */
+function generateRandomColor() {
+  // 预定义一些美观的颜色
+  const beautifulColors = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+    '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+    '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2',
+    '#A9CCE3', '#F9E79F', '#D5A6BD', '#A3E4D7', '#FAD7A0',
+    '#D2B4DE', '#AED6F1', '#FADBD8', '#D1F2EB', '#FDEBD0',
+    '#E8DAEF', '#D4EFDF', '#FCF3CF', '#FADBD8', '#D6EAF8'
+  ];
+  
+  // 随机选择一个预定义的颜色
+  return beautifulColors[Math.floor(Math.random() * beautifulColors.length)];
+}
+
 /** 查询概念配置列表 */
 function getList() {
 
@@ -332,6 +348,7 @@ function reset() {
     id: null,
     workspaceId: null,
     name: null,
+    color: generateRandomColor(), // 设置随机颜色
     description: null,
     validFlag: null,
     delFlag: null,
@@ -375,10 +392,6 @@ function handleSortChange(column, prop, order) {
 
 /** 新增按钮操作 */
 function handleAdd() {
-  console.log('------------a-a-a-a-',form.value)
-
-  form.value.color = '#409EFF'
-  console.log('------------a-a-a-a-',form.value.color)
   reset();
   open.value = true;
   title.value = "添加概念配置";
@@ -546,6 +559,8 @@ getList();
     height: 25px;
     margin: 0 auto; /* Center horizontally */
     border-radius: 50%; /* 使其成为圆形 */
+    border: 2px solid #e4e7ed; /* 添加边框 */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* 添加阴影效果 */
   }
   ::v-deep .el-color-picker .el-color-picker__trigger {
     width: 30px; /* 设置宽度 */

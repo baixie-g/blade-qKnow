@@ -4,7 +4,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="tech.qiantong.qknow.module.ext.dal.mapper.extUnstructTask.ExtUnstructTaskMapper">
 
-    <resultMap type="ExtUnstructTaskDO" id="ExtUnstructTaskResult">
+    <resultMap type="tech.qiantong.qknow.module.ext.dal.dataobject.extUnstructTask.ExtUnstructTaskDO" id="ExtUnstructTaskResult">
         <result property="id"    column="id"    />
         <result property="workspaceId"    column="workspace_id"    />
         <result property="name"    column="name"    />
@@ -28,7 +28,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         select id, workspace_id, name, status, publish_status, publish_time, publisher_id, publish_by, valid_flag, del_flag, create_by, creator_id, create_time, update_by, updater_id, update_time, remark from ext_unstruct_task
     </sql>
 
-    <select id="selectExtUnstructTaskList" parameterType="ExtUnstructTaskDO" resultMap="ExtUnstructTaskResult">
+    <select id="selectExtUnstructTaskList" parameterType="tech.qiantong.qknow.module.ext.dal.dataobject.extUnstructTask.ExtUnstructTaskDO" resultMap="ExtUnstructTaskResult">
         <include refid="selectExtUnstructTaskVo"/>
         <where>
             <if test="workspaceId != null "> and workspace_id = #{workspaceId}</if>
@@ -47,7 +47,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </select>
 
-    <insert id="insertExtUnstructTask" parameterType="ExtUnstructTaskDO" useGeneratedKeys="true" keyProperty="id">
+    <insert id="insertExtUnstructTask" parameterType="tech.qiantong.qknow.module.ext.dal.dataobject.extUnstructTask.ExtUnstructTaskDO" useGeneratedKeys="true" keyProperty="id">
         insert into ext_unstruct_task
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="workspaceId != null">workspace_id,</if>
@@ -87,7 +87,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
          </trim>
     </insert>
 
-    <update id="updateExtUnstructTask" parameterType="ExtUnstructTaskDO">
+    <update id="updateExtUnstructTask" parameterType="tech.qiantong.qknow.module.ext.dal.dataobject.extUnstructTask.ExtUnstructTaskDO">
         update ext_unstruct_task
         <trim prefix="SET" suffixOverrides=",">
             <if test="workspaceId != null">workspace_id = #{workspaceId},</if>

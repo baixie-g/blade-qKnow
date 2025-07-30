@@ -1,3 +1,13 @@
 # 非结构化抽取方式选择：deepke或者model。注：type参数请选择deepke，开源版本暂未支持大模型抽取，如有需要请咨询相关管理人员
 unstruct:
   type: deepke
+
+# 抽取API配置
+extraction:
+  api:
+    url: http://127.0.0.1:8000/extract
+
+# 实体消歧API配置
+disambiguation:
+  api:
+    url: http://localhost:8002/match-candidates

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="tech.qiantong.qknow.module.ext.dal.mapper.extRelationshipPool.ExtRelationshipPoolMapper">
+
+    <!-- 批量插入关系 -->
+    <insert id="insertBatch" parameterType="java.util.List">
+        INSERT INTO ext_relationship_pool (
+            workspace_id, task_id, doc_id, paragraph_index, source_entity_id, target_entity_id,
+            relationship_type, status, valid_flag, del_flag,
+            create_by, creator_id, create_time, update_by, updater_id, update_time, remark
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (
+                #{item.workspaceId}, #{item.taskId}, #{item.docId}, #{item.paragraphIndex},
+                #{item.sourceEntityId}, #{item.targetEntityId}, #{item.relationshipType},
+                #{item.status}, #{item.validFlag}, #{item.delFlag},
+                #{item.createBy}, #{item.creatorId}, #{item.createTime},
+                #{item.updateBy}, #{item.updaterId}, #{item.updateTime}, #{item.remark}
+            )
+        </foreach>
+    </insert>
+
+</mapper> 

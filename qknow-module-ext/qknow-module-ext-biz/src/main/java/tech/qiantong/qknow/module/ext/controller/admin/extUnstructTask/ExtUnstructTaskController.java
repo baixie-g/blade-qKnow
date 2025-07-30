@@ -38,6 +38,7 @@ import tech.qiantong.qknow.module.ext.service.neo4j.service.ExtNeo4jService;
 import tech.qiantong.qknow.module.ext.service.unstructTaskRelation.IExtUnstructTaskRelationService;
 import tech.qiantong.qknow.module.kmc.api.service.IKmcApiService;
 import tech.qiantong.qknow.module.kmc.dal.dataobject.document.KmcDocumentDO;
+import tech.qiantong.qknow.module.kmc.service.kmcDocument.IKmcDocumentService;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
@@ -68,6 +69,8 @@ public class ExtUnstructTaskController extends BaseController {
     private IKmcApiService kmcApiService;
     @Resource
     private IExtUnstructTaskRelationService extUnstructTaskRelationService;
+    @Resource
+    private IKmcDocumentService kmcDocumentService;
 
     /**
      * 执行抽取 具体任务异步执行
@@ -78,6 +81,21 @@ public class ExtUnstructTaskController extends BaseController {
     @PostMapping("/executeExtraction")
     public AjaxResult executeExtraction(@RequestBody ExtUnstructTaskSaveReqVO extUnstructTask) {
         return extUnstructTaskService.executeExtraction(extUnstructTask);
+    }
+
+    /**
+     * 手动触发队列消费（用于调试）
+     *
+     * @return
+     */
+    @PostMapping("/manualConsumeQueue")
+    public AjaxResult manualConsumeQueue() {
+        try {
+            extUnstructTaskService.consumeQueue();
+            return AjaxResult.success("队列消费成功");
+        } catch (Exception e) {
+            return AjaxResult.error("队列消费失败: " + e.getMessage());
+        }
     }
 
     /**
@@ -208,9 +226,10 @@ public class ExtUnstructTaskController extends BaseController {
         List<Long> docIds = textPageReqVOList.stream()
                 .map(e -> e.getDocId())  // 假设每个对象有一个 getDocId() 方法
                 .collect(Collectors.toList());
-        List<KmcDocumentDO> documentListByIds = new ArrayList<KmcDocumentDO>();
+        List<KmcDocumentDO> documentListByIds = new ArrayList<>();
         if (docIds.size() > 0) {
-            documentListByIds = kmcApiService.getKmcDocumentListByIds(docIds);
+            List<KmcDocumentDO> documents = kmcDocumentService.getKmcDocumentListByIds(docIds);
+            documentListByIds = documents;
         }
 
         HashMap<String, Object> hashMap = new HashMap<String, Object>();
@@ -320,7 +339,11 @@ public class ExtUnstructTaskController extends BaseController {
         List<Long> docIds = textPageReqVOList.stream()
                 .map(ExtUnstructTaskTextPageReqVO::getDocId)  // 假设每个对象有一个 getDocId() 方法
                 .collect(Collectors.toList());
-        List<KmcDocumentDO> documentListByIds = kmcApiService.getKmcDocumentListByIds(docIds);
+        List<KmcDocumentDO> documentListByIds = new ArrayList<>();
+        if (!docIds.isEmpty()) {
+            List<KmcDocumentDO> documents = kmcDocumentService.getKmcDocumentListByIds(docIds);
+            documentListByIds = documents;
+        }
 
         Map<String, Object> map = Maps.newHashMap();
         map.put("textListByTaskId", textPageReqVOList);

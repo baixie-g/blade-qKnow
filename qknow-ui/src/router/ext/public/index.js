@@ -71,4 +71,32 @@ export default [
       },
     ],
   },
+  {
+    path: "/ext/entityPool",
+    component: Layout,
+    redirect: "entityPool",
+    hidden: true,
+    children: [
+      {
+        path: "",
+        component: () => import("@/views/ext/extEntityPool/index.vue"),
+        name: "entityPoolIndex",
+        meta: { title: "实体池管理", activeMenu: "/ext/entityPool" },
+      },
+    ],
+  },
+  {
+    path: "/ext/relationshipPool",
+    component: Layout,
+    redirect: "relationshipPool",
+    hidden: true,
+    children: [
+      {
+        path: "",
+        component: () => import("@/views/ext/extRelationshipPool/index.vue"),
+        name: "relationshipPoolIndex",
+        meta: { title: "关系池管理", activeMenu: "/ext/relationshipPool" },
+      },
+    ],
+  },
 ];

@@ -1,7 +1,6 @@
 package tech.qiantong.qknow.module.kmc.api.service.impl;
 
 import com.google.common.collect.Lists;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import tech.qiantong.qknow.module.kmc.api.service.IKmcApiService;
 import tech.qiantong.qknow.module.kmc.dal.dataobject.document.KmcDocumentDO;
@@ -23,20 +22,26 @@ public class KmcApiServiceImpl implements IKmcApiService {
     public IKmcCategoryService kmcCategoryService;
 
     @Override
-    public List<KmcDocumentDO> getKmcDocumentList(){
-        return kmcDocumentService.getKmcDocumentList();
+    public List<Object> getKmcDocumentList(){
+        List<KmcDocumentDO> documentList = kmcDocumentService.getKmcDocumentList();
+        return documentList.stream().map(doc -> (Object) doc).collect(Collectors.toList());
     }
 
     @Override
-    public List<KmcDocumentDO> getKmcDocumentListByIds(List<Long> ids){
+    public List<Object> getKmcDocumentListByIds(List<Long> ids){
         if (ids.isEmpty()) {
             return Lists.newArrayList();
         }
-        return kmcDocumentService.getKmcDocumentListByIds(ids);
+        List<KmcDocumentDO> documentList = kmcDocumentService.getKmcDocumentListByIds(ids);
+        return documentList.stream().map(doc -> (Object) doc).collect(Collectors.toList());
     }
 
     @Override
-    public List<TreeSelects> getCategoryTreeList(KmcCategoryDO kmcCategoryDO) {
-        return kmcCategoryService.selectCategoryTreeList(kmcCategoryDO);
+    public List<Object> getCategoryTreeList(Object kmcCategoryDO) {
+        if (kmcCategoryDO instanceof KmcCategoryDO) {
+            List<TreeSelects> treeList = kmcCategoryService.selectCategoryTreeList((KmcCategoryDO) kmcCategoryDO);
+            return treeList.stream().map(tree -> (Object) tree).collect(Collectors.toList());
+        }
+        return Lists.newArrayList();
     }
-}
+} 

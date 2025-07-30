@@ -58,6 +58,8 @@ spring:
     mode: HTML
     encoding: utf-8
     cache: false
+    # 添加以下配置
+#    enabled: false  # 禁用Thymeleaf，因为这是前后端分离项目
   # 资源信息
   messages:
     # 国际化资源文件路径

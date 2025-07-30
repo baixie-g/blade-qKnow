@@ -26,20 +26,29 @@ import tech.qiantong.qknow.module.ext.dal.dataobject.extUnstructTaskDocRel.ExtUn
 import tech.qiantong.qknow.module.ext.dal.dataobject.extUnstructTaskText.ExtUnstructTaskTextDO;
 import tech.qiantong.qknow.module.ext.dal.dataobject.extraction.ExtExtractionDO;
 import tech.qiantong.qknow.module.ext.dal.dataobject.unstructTaskRelation.ExtUnstructTaskRelationDO;
+import tech.qiantong.qknow.module.ext.dal.dataobject.extEntityPool.ExtEntityPoolDO;
+import tech.qiantong.qknow.module.ext.dal.dataobject.extRelationshipPool.ExtRelationshipPoolDO;
 import tech.qiantong.qknow.module.ext.dal.mapper.extUnstructTask.ExtUnstructTaskMapper;
 import tech.qiantong.qknow.module.ext.dal.mapper.extUnstructTaskText.ExtUnstructTaskTextMapper;
 import tech.qiantong.qknow.module.ext.extEnum.ExtTaskStatus;
 import tech.qiantong.qknow.module.ext.extEnum.ExtractType;
 import tech.qiantong.qknow.module.ext.extEnum.UnstructTypeEnums;
 import tech.qiantong.qknow.module.ext.service.deepke.DeepkeExtractionService;
+import tech.qiantong.qknow.module.ext.service.extraction.ExtractionService;
 import tech.qiantong.qknow.module.ext.service.extUnstructTask.IExtUnstructTaskService;
 import tech.qiantong.qknow.module.ext.service.extUnstructTaskDocRel.IExtUnstructTaskDocRelService;
+import tech.qiantong.qknow.module.ext.service.extEntityPool.IExtEntityPoolService;
+import tech.qiantong.qknow.module.ext.service.extRelationshipPool.IExtRelationshipPoolService;
 import tech.qiantong.qknow.module.ext.service.neo4j.service.ExtNeo4jService;
 import tech.qiantong.qknow.module.ext.service.unstructTaskRelation.IExtUnstructTaskRelationService;
 import tech.qiantong.qknow.module.kmc.api.service.IKmcApiService;
 import tech.qiantong.qknow.module.kmc.dal.dataobject.document.KmcDocumentDO;
 import tech.qiantong.qknow.module.kmc.service.kmcDocument.IKmcDocumentService;
 import tech.qiantong.qknow.redis.service.IRedisService;
+import tech.qiantong.qknow.module.ext.dal.dataobject.extSchema.ExtSchemaDO;
+import tech.qiantong.qknow.module.ext.dal.dataobject.extSchemaRelation.ExtSchemaRelationDO;
+import tech.qiantong.qknow.module.ext.service.extSchema.IExtSchemaService;
+import tech.qiantong.qknow.module.ext.service.extSchemaRelation.IExtSchemaRelationService;
 
 import javax.annotation.Resource;
 import java.io.IOException;
@@ -72,11 +81,21 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
     @Resource
     private DeepkeExtractionService deepkeExtractionService;
     @Resource
+    private ExtractionService extractionService;
+    @Resource
+    private IExtEntityPoolService extEntityPoolService;
+    @Resource
+    private IExtRelationshipPoolService extRelationshipPoolService;
+    @Resource
     private ExtUnstructTaskTextMapper extUnstructTaskTextMapper;
     @Resource
     private ExtNeo4jService extNeo4jService;
     @Resource
     private IRedisService redisService;
+    @Resource
+    private IExtSchemaService extSchemaService;
+    @Resource
+    private IExtSchemaRelationService extSchemaRelationService;
     @Value("${unstruct.type}")
     private String unstructType;
 
@@ -186,19 +205,20 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
         // 获取所有的文件，存放至map中
         Map<Long, KmcDocumentDO> documentMap = kmcDocumentService.getKmcDocumentMap();
 
+        // 删除池子中之前抽取相关的数据, 如果有的话
+        // TODO: 添加删除池子数据的方法
+        // extEntityPoolService.deleteByTaskId(unstructTaskDO.getId());
+        // extRelationshipPoolService.deleteByTaskId(unstructTaskDO.getId());
+        
+        // 删除mysql中之前抽取的段落相关的数据, 如果有的话
+        extUnstructTaskTextMapper.deleteByTaskId(unstructTaskDO.getId());
+
         // 遍历任务关联的文件
         for (ExtUnstructTaskDocRelDO extUnstructTaskDocRelDO : taskDocRelDOList) {
             KmcDocumentDO kmcDocument = documentMap.get(extUnstructTaskDocRelDO.getDocId());
 
             // 拼接文件地址
             String fileUrl = "http://127.0.0.1:8090/profile" + kmcDocument.getPath();
-
-            // 删除neo4j中之前抽取相关的数据, 如果有的话
-            ExtExtractionDO extractionDO = new ExtExtractionDO();
-            extractionDO.setTaskId(unstructTaskDO.getId());
-            extNeo4jService.deleteExtUnStruck(extractionDO);
-            // 删除mysql中之前抽取的段落相关的数据, 如果有的话
-            extUnstructTaskTextMapper.deleteByTaskId(unstructTaskDO.getId());
 
             // 创建 URL 对象
             URL url = new URL(fileUrl);
@@ -223,48 +243,172 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
                 }
                 log.info("============>抽取文本: {}", text);
 
-                log.info("============调用DeepKE工具开始抽取============");
-                AjaxResult ajaxResult = deepkeExtractionService.deepkeExtraction(text);
-                log.info("============调用DeepKE工具完成============");
+                // 使用新的抽取API
+                log.info("============调用新的抽取API开始抽取============");
+                
+                // 从任务配置中获取schema信息
+                List<String> schemaList = getTaskSchemaList(unstructTaskDO.getId());
+                if (schemaList == null || schemaList.isEmpty()) {
+                    log.warn("任务未配置抽取schema，跳过抽取");
+                    continue;
+                }
+                
+                AjaxResult ajaxResult = extractionService.extractWithTaskSchema(text, schemaList);
+                log.info("============调用新的抽取API完成============");
 
                 if (ajaxResult.isSuccess()) {
                     log.info("============>抽取文本成功：{}", text);
-                    String result = (String) ajaxResult.get("data");
-                    String entity = result.substring(result.indexOf("抽取到的实体====>") + 11, result.indexOf("<====抽取到的实体"));
-                    entity = entity.replace("'", "\"");
-                    log.info("============>抽取到的实体：{}", entity);
-                    String triplet = result.substring(result.indexOf("抽取到的三元组====>") + 12, result.indexOf("<====抽取到的三元组"));
-                    triplet = triplet.replace("'", "\"");
-                    log.info("============>抽取到的三元组：{}", JSONArray.parseArray(triplet));
-                    List<ExtExtractionDO> extractionList = JSON.parseArray(triplet, ExtExtractionDO.class);
-                    if (extractionList.size() > 0) {
-                        for (ExtExtractionDO e : extractionList) {
-                            e.setTaskId(unstructTaskDO.getId());
-                            e.setDocId(extUnstructTaskDocRelDO.getDocId().intValue());
-                            e.setParagraphIndex(i);
-                        }
-
-                        //把抽取出来的数据存储到neo4j数据库
-                        extNeo4jService.insertExtractionList(extractionList);
-
-                        //把文字信息存储到数据库
-                        ExtUnstructTaskTextDO taskTextDO = new ExtUnstructTaskTextDO();
-                        taskTextDO.setValidFlag(false);
-                        taskTextDO.setDelFlag(false);
-                        taskTextDO.setWorkspaceId(unstructTaskDO.getWorkspaceId());
-                        taskTextDO.setDocId(extUnstructTaskDocRelDO.getDocId());
-                        taskTextDO.setTaskId(unstructTaskDO.getId());
-                        taskTextDO.setParagraphIndex(i);
-                        taskTextDO.setText(text);
-                        taskTextDO.setCreateBy(unstructTaskDO.getUpdateBy());
-                        taskTextDO.setUpdateBy(unstructTaskDO.getUpdateBy());
-                        taskTextDO.setCreatorId(unstructTaskDO.getUpdaterId());
-                        taskTextDO.setUpdaterId(unstructTaskDO.getUpdaterId());
-                        taskTextDO.setCreateTime(new Date());
-                        taskTextDO.setUpdateTime(new Date());
-                        log.info("============>把段落数据添加到数据库:{}", JSONObject.toJSONString(taskTextDO));
-                        extUnstructTaskTextMapper.insert(taskTextDO);
+                    
+                    // 解析返回结果 - 修复FastJSON版本兼容性问题
+                    Object dataObj = ajaxResult.get("data");
+                    JSONObject result;
+                    if (dataObj instanceof com.alibaba.fastjson.JSONObject) {
+                        // 如果是旧版本的JSONObject，转换为新版本
+                        result = JSON.parseObject(dataObj.toString());
+                    } else {
+                        result = (JSONObject) dataObj;
                     }
+                    
+                    JSONArray nodes = result.getJSONArray("nodes");
+                    JSONArray relationships = result.getJSONArray("relationships");
+                    
+                    log.info("============>抽取到的实体：{}", nodes);
+                    log.info("============>抽取到的关系：{}", relationships);
+                    
+                    // 保存实体到池子
+                    List<ExtEntityPoolDO> entityPoolList = new ArrayList<>();
+                    log.info("============ 开始保存实体到实体池 ============");
+                    log.info("任务ID: {}, 文档ID: {}, 段落索引: {}", unstructTaskDO.getId(), extUnstructTaskDocRelDO.getDocId(), i);
+                    
+                    for (int j = 0; j < nodes.size(); j++) {
+                        JSONObject node = nodes.getJSONObject(j);
+                        
+                        // 处理aliases字段 - 确保是JSON字符串格式
+                        String aliasesStr = "";
+                        if (node.containsKey("aliases")) {
+                            Object aliasesObj = node.get("aliases");
+                            if (aliasesObj instanceof JSONArray) {
+                                aliasesStr = aliasesObj.toString();
+                            } else if (aliasesObj instanceof String) {
+                                aliasesStr = (String) aliasesObj;
+                            }
+                        }
+                        
+                        // 处理attributes字段 - 确保是JSON字符串格式
+                        String attributesStr = "";
+                        if (node.containsKey("attributes")) {
+                            Object attributesObj = node.get("attributes");
+                            if (attributesObj instanceof JSONObject) {
+                                attributesStr = attributesObj.toString();
+                            } else if (attributesObj instanceof String) {
+                                attributesStr = (String) attributesObj;
+                            }
+                        }
+                        
+                        ExtEntityPoolDO entityPool = ExtEntityPoolDO.builder()
+                            .workspaceId(unstructTaskDO.getWorkspaceId())
+                            .taskId(unstructTaskDO.getId())
+                            .docId(extUnstructTaskDocRelDO.getDocId())
+                            .paragraphIndex(i)
+                            .entityId(node.getString("id"))
+                            .entityName(node.getString("name"))
+                            .entityType(node.getString("type"))
+                            .aliases(aliasesStr)
+                            .definition(node.getString("definition"))
+                            .attributes(attributesStr)
+                            .status(0) // 待处理
+                            .validFlag(true)
+                            .delFlag(false)
+                            .build();
+                        // 设置父类字段
+                        entityPool.setCreateBy(unstructTaskDO.getUpdateBy());
+                        entityPool.setCreatorId(unstructTaskDO.getUpdaterId());
+                        entityPool.setUpdateBy(unstructTaskDO.getUpdateBy());
+                        entityPool.setUpdaterId(unstructTaskDO.getUpdaterId());
+                        entityPool.setCreateTime(new Date());
+                        entityPool.setUpdateTime(new Date());
+                        entityPoolList.add(entityPool);
+                        
+                        log.info("准备保存实体: ID={}, 名称={}, 类型={}", 
+                            entityPool.getEntityId(), entityPool.getEntityName(), entityPool.getEntityType());
+                    }
+                    
+                    // 批量保存实体到池子
+                    if (!entityPoolList.isEmpty()) {
+                        log.info("批量保存实体到实体池，数量: {}", entityPoolList.size());
+                        try {
+                            extEntityPoolService.batchSaveEntities(entityPoolList);
+                            log.info("============ 实体池保存成功 ============");
+                        } catch (Exception e) {
+                            log.error("============ 实体池保存失败 ============");
+                            log.error("保存实体异常: ", e);
+                        }
+                    } else {
+                        log.info("没有实体需要保存到实体池");
+                    }
+                    
+                    // 保存关系到池子
+                    List<ExtRelationshipPoolDO> relationshipPoolList = new ArrayList<>();
+                    log.info("============ 开始保存关系到关系池 ============");
+                    
+                    for (int j = 0; j < relationships.size(); j++) {
+                        JSONObject relationship = relationships.getJSONObject(j);
+                        ExtRelationshipPoolDO relationshipPool = ExtRelationshipPoolDO.builder()
+                            .workspaceId(unstructTaskDO.getWorkspaceId())
+                            .taskId(unstructTaskDO.getId())
+                            .docId(extUnstructTaskDocRelDO.getDocId())
+                            .paragraphIndex(i)
+                            .sourceEntityId(relationship.getString("source"))
+                            .targetEntityId(relationship.getString("target"))
+                            .relationshipType(relationship.getString("type"))
+                            .status(0) // 待处理
+                            .validFlag(true)
+                            .delFlag(false)
+                            .build();
+                        // 设置父类字段
+                        relationshipPool.setCreateBy(unstructTaskDO.getUpdateBy());
+                        relationshipPool.setCreatorId(unstructTaskDO.getUpdaterId());
+                        relationshipPool.setUpdateBy(unstructTaskDO.getUpdateBy());
+                        relationshipPool.setUpdaterId(unstructTaskDO.getUpdaterId());
+                        relationshipPool.setCreateTime(new Date());
+                        relationshipPool.setUpdateTime(new Date());
+                        relationshipPoolList.add(relationshipPool);
+                        
+                        log.info("准备保存关系: 源实体={}, 目标实体={}, 关系类型={}", 
+                            relationshipPool.getSourceEntityId(), relationshipPool.getTargetEntityId(), relationshipPool.getRelationshipType());
+                    }
+                    
+                    // 批量保存关系到池子
+                    if (!relationshipPoolList.isEmpty()) {
+                        log.info("批量保存关系到关系池，数量: {}", relationshipPoolList.size());
+                        try {
+                            extRelationshipPoolService.batchSaveRelationships(relationshipPoolList);
+                            log.info("============ 关系池保存成功 ============");
+                        } catch (Exception e) {
+                            log.error("============ 关系池保存失败 ============");
+                            log.error("保存关系异常: ", e);
+                        }
+                    } else {
+                        log.info("没有关系需要保存到关系池");
+                    }
+
+                    //把文字信息存储到数据库
+                    ExtUnstructTaskTextDO taskTextDO = new ExtUnstructTaskTextDO();
+                    taskTextDO.setValidFlag(false);
+                    taskTextDO.setDelFlag(false);
+                    taskTextDO.setWorkspaceId(unstructTaskDO.getWorkspaceId());
+                    taskTextDO.setDocId(extUnstructTaskDocRelDO.getDocId());
+                    taskTextDO.setTaskId(unstructTaskDO.getId());
+                    taskTextDO.setParagraphIndex(i);
+                    taskTextDO.setText(text);
+                    taskTextDO.setCreateBy(unstructTaskDO.getUpdateBy());
+                    taskTextDO.setUpdateBy(unstructTaskDO.getUpdateBy());
+                    taskTextDO.setCreatorId(unstructTaskDO.getUpdaterId());
+                    taskTextDO.setUpdaterId(unstructTaskDO.getUpdaterId());
+                    taskTextDO.setCreateTime(new Date());
+                    taskTextDO.setUpdateTime(new Date());
+                    log.info("============>把段落数据添加到数据库:{}", JSONObject.toJSONString(taskTextDO));
+                    extUnstructTaskTextMapper.insert(taskTextDO);
                 } else {
                     log.error("============>抽取任务失败: {}", ajaxResult);
                     unstructTaskDO.setStatus(ExtTaskStatus.ERROR.getValue());
@@ -272,7 +416,6 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
                 }
             }
         }
-        log.info("---------- 执行抽取任务结束 -------------");
     }
 
     @Override
@@ -324,8 +467,9 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
                 .map(Long::parseLong) // 将每个字符串转换为 Long
                 .collect(Collectors.toList()); // 收集成一个 List<Long>
         if (ids.size() > 0) {
-            List<KmcDocumentDO> documentListByIds = kmcApiService.getKmcDocumentListByIds(ids);
-
+            List<KmcDocumentDO> documentListByIds = kmcDocumentService.getKmcDocumentListByIds(ids);
+            
+            // 直接使用KmcDocumentDO列表，无需类型转换
             documentListByIds.forEach(e -> {
                 ExtUnstructTaskDocRelSaveReqVO docRelSaveReqVO = new ExtUnstructTaskDocRelSaveReqVO();
                 docRelSaveReqVO.setWorkspaceId(createReqVO.getWorkspaceId());
@@ -476,5 +620,43 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
             resultMsg.append("恭喜您，数据已全部导入成功！共 ").append(successNum).append(" 条。");
         }
         return resultMsg.toString();
+    }
+
+    /**
+     * 获取任务的schema配置列表
+     *
+     * @param taskId 任务ID
+     * @return schema列表
+     */
+    private List<String> getTaskSchemaList(Long taskId) {
+        try {
+            // 获取任务关联的关系配置
+            List<ExtUnstructTaskRelationDO> relationList = extUnstructTaskRelationService.findByTaskId(taskId);
+            if (relationList == null || relationList.isEmpty()) {
+                return null;
+            }
+
+            List<String> schemaList = new ArrayList<>();
+            for (ExtUnstructTaskRelationDO taskRelation : relationList) {
+                // 通过relationId获取关系配置详情
+                ExtSchemaRelationDO schemaRelation = extSchemaRelationService.getExtSchemaRelationById(taskRelation.getRelationId());
+                if (schemaRelation != null) {
+                    // 获取起点和终点的概念名称
+                    ExtSchemaDO startSchema = extSchemaService.getExtSchemaById(schemaRelation.getStartSchemaId());
+                    ExtSchemaDO endSchema = extSchemaService.getExtSchemaById(schemaRelation.getEndSchemaId());
+                    
+                    if (startSchema != null && endSchema != null) {
+                        // 构建schema格式：起点-关系->终点
+                        String schema = startSchema.getName() + "-" + schemaRelation.getRelation() + "->" + endSchema.getName();
+                        schemaList.add(schema);
+                    }
+                }
+            }
+            
+            return schemaList;
+        } catch (Exception e) {
+            log.error("获取任务schema配置失败，taskId: {}", taskId, e);
+            return null;
+        }
     }
 }
