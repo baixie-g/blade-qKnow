@@ -96,6 +96,26 @@
       </el-col>
       <el-col :span="1.5">
         <el-button
+          type="success"
+          plain
+          icon="Check"
+          :disabled="multiple"
+          @click="handleBatchConfirm"
+          v-hasPermi="['ext:relationshipPool:process']"
+        >批量确认</el-button>
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="danger"
+          plain
+          icon="Close"
+          :disabled="multiple"
+          @click="handleBatchReject"
+          v-hasPermi="['ext:relationshipPool:process']"
+        >批量拒绝</el-button>
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
           type="warning"
           plain
           icon="Download"
@@ -225,7 +245,15 @@
 </template>
 
 <script setup name="RelationshipPool">
-import { listRelationshipPool, getRelationshipPool, delRelationshipPool, addRelationshipPool, updateRelationshipPool, processRelationship } from "@/api/ext/extRelationshipPool";
+import { 
+  listRelationshipPool, 
+  getRelationshipPool, 
+  delRelationshipPool, 
+  addRelationshipPool, 
+  updateRelationshipPool, 
+  processRelationship,
+  batchProcessRelationships
+} from "@/api/ext/extRelationshipPool";
 
 const { proxy } = getCurrentInstance();
 const { sys_normal_dict } = proxy.useDict("sys_normal_dict");
@@ -425,6 +453,76 @@ function submitProcess() {
         getList();
       });
     }
+  });
+}
+
+/** 批量确认 */
+function handleBatchConfirm() {
+  if (ids.value.length === 0) {
+    proxy.$modal.msgError("请选择要批量确认的关系池");
+    return;
+  }
+  proxy.$modal.confirm('是否确认批量确认选中的关系池？').then(function() {
+    return batchProcessRelationships(ids.value, 1, ''); // 批量确认，状态为1
+  }).then(response => {
+    console.log('批量确认响应:', response);
+    if (response.code === 200) {
+      const data = response.data;
+      if (data.failCount === 0) {
+        proxy.$modal.msgSuccess(data.message || "批量确认成功");
+      } else if (data.successCount === 0) {
+        proxy.$modal.msgError(data.message || "批量确认失败");
+      } else {
+        proxy.$modal.msgWarning(data.message || "批量确认部分成功");
+      }
+      // 显示详细结果
+      if (data.errorMessages && data.errorMessages.length > 0) {
+        console.log('失败详情:', data.errorMessages);
+        // 可以选择弹窗显示详细错误信息
+        proxy.$modal.msgWarning("部分处理失败，请查看控制台了解详情");
+      }
+    } else {
+      proxy.$modal.msgError(response.msg || "批量确认失败");
+    }
+    getList();
+  }).catch(error => {
+    console.error('批量确认失败:', error);
+    proxy.$modal.msgError("批量确认失败: " + (error.message || '未知错误'));
+  });
+}
+
+/** 批量拒绝 */
+function handleBatchReject() {
+  if (ids.value.length === 0) {
+    proxy.$modal.msgError("请选择要批量拒绝的关系池");
+    return;
+  }
+  proxy.$modal.confirm('是否确认批量拒绝选中的关系池？').then(function() {
+    return batchProcessRelationships(ids.value, 2, ''); // 批量拒绝，状态为2
+  }).then(response => {
+    console.log('批量拒绝响应:', response);
+    if (response.code === 200) {
+      const data = response.data;
+      if (data.failCount === 0) {
+        proxy.$modal.msgSuccess(data.message || "批量拒绝成功");
+      } else if (data.successCount === 0) {
+        proxy.$modal.msgError(data.message || "批量拒绝失败");
+      } else {
+        proxy.$modal.msgWarning(data.message || "批量拒绝部分成功");
+      }
+      // 显示详细结果
+      if (data.errorMessages && data.errorMessages.length > 0) {
+        console.log('失败详情:', data.errorMessages);
+        // 可以选择弹窗显示详细错误信息
+        proxy.$modal.msgWarning("部分处理失败，请查看控制台了解详情");
+      }
+    } else {
+      proxy.$modal.msgError(response.msg || "批量拒绝失败");
+    }
+    getList();
+  }).catch(error => {
+    console.error('批量拒绝失败:', error);
+    proxy.$modal.msgError("批量拒绝失败: " + (error.message || '未知错误'));
   });
 }
 

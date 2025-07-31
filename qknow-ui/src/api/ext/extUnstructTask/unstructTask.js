@@ -123,3 +123,11 @@ export function getTextList(ids) {
     method: 'get',
   })
 }
+
+// 手动触发队列消费
+export function manualConsumeQueue() {
+  return request({
+    url: '/ext/unstructTask/manualConsumeQueue',
+    method: 'post'
+  })
+}

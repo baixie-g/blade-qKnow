@@ -29,8 +29,10 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 关系池 Controller
@@ -207,7 +209,12 @@ public class ExtRelationshipPoolController extends BaseController {
     public CommonResult<Object> processRelationship(@RequestParam("id") Long id,
                                                    @RequestParam("status") Integer status,
                                                    @RequestParam(value = "remark", required = false) String remark) {
-        return CommonResult.success(extRelationshipPoolService.processRelationship(id, status, remark));
+        AjaxResult result = extRelationshipPoolService.processRelationship(id, status, remark);
+        if (result.isSuccess()) {
+            return CommonResult.success(result.get("msg"));
+        } else {
+            return CommonResult.error(500, result.get("msg").toString());
+        }
     }
 
     /**
@@ -221,12 +228,29 @@ public class ExtRelationshipPoolController extends BaseController {
     @PostMapping("/batch-process")
     @Operation(summary = "批量处理关系")
     @PreAuthorize("@ss.hasPermi('ext:extRelationshipPool:process')")
-    public CommonResult<AjaxResult> batchProcessRelationships(
-            @RequestParam("idList") List<Long> idList,
-            @RequestParam("status") Integer status,
-            @RequestParam(value = "remark", required = false) String remark) {
+    public CommonResult<Object> batchProcessRelationships(@RequestBody Map<String, Object> requestBody) {
+        // 正确处理ID列表的类型转换
+        List<?> idListObj = (List<?>) requestBody.get("idList");
+        List<Long> idList = new ArrayList<>();
+        for (Object id : idListObj) {
+            if (id instanceof Integer) {
+                idList.add(((Integer) id).longValue());
+            } else if (id instanceof Long) {
+                idList.add((Long) id);
+            } else {
+                idList.add(Long.valueOf(id.toString()));
+            }
+        }
+        
+        Integer status = (Integer) requestBody.get("status");
+        String remark = (String) requestBody.get("remark");
+        
         AjaxResult result = extRelationshipPoolService.batchProcessRelationships(idList, status, remark);
-        return CommonResult.success(result);
+        if (result.isSuccess()) {
+            return CommonResult.success(result.get("data"));
+        } else {
+            return CommonResult.error(500, result.get("msg").toString());
+        }
     }
 
     /**

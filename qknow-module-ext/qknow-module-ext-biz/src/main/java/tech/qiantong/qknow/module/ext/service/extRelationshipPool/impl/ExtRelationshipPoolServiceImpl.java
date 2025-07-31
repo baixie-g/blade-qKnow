@@ -37,6 +37,7 @@ import java.util.Map;
 import static tech.qiantong.qknow.module.ext.enums.ErrorCodeConstants.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.context.annotation.Lazy;
+import com.alibaba.fastjson2.JSON;
 
 /**
  * 关系池 Service 实现类
@@ -197,7 +198,51 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
         // 校验存在
         ExtRelationshipPoolDO relationshipPool = validateExtRelationshipPoolExistsAndReturn(id);
         
-        // 更新处理状态
+        log.info("============ 开始处理关系 ============");
+        log.info("关系ID: {}, 状态: {}, 备注: {}", id, status, remark);
+        log.info("关系信息: {}", JSON.toJSONString(relationshipPool));
+        
+        // 如果确认关系，先检查实体状态
+        if (status == 1) { // 已确认
+            try {
+                log.info("============ 开始检查源实体和目标实体 ============");
+                log.info("源实体ID: {}, 目标实体ID: {}, 任务ID: {}", 
+                    relationshipPool.getSourceEntityId(), 
+                    relationshipPool.getTargetEntityId(), 
+                    relationshipPool.getTaskId());
+                
+                // 检查两个实体是否都已确认
+                ExtEntityPoolDO sourceEntity = extEntityPoolService.getEntityByEntityId(
+                    relationshipPool.getSourceEntityId(), relationshipPool.getTaskId());
+                ExtEntityPoolDO targetEntity = extEntityPoolService.getEntityByEntityId(
+                    relationshipPool.getTargetEntityId(), relationshipPool.getTaskId());
+                
+                log.info("============ 实体查询结果 ============");
+                log.info("源实体查询结果: {}", sourceEntity != null ? JSON.toJSONString(sourceEntity) : "null");
+                log.info("目标实体查询结果: {}", targetEntity != null ? JSON.toJSONString(targetEntity) : "null");
+                
+                if (sourceEntity != null && targetEntity != null && 
+                    sourceEntity.getStatus() == 1 && targetEntity.getStatus() == 1) {
+                    log.info("============ 两个实体都已确认，开始创建关系 ============");
+                    // 两个实体都已确认，可以创建关系
+                    saveRelationshipToNeo4j(relationshipPool, sourceEntity, targetEntity);
+                    log.info("关系确认成功，已存入Neo4j，关系ID: {}", id);
+                } else {
+                    log.warn("============ 关系确认失败 ============");
+                    log.warn("源实体状态: {}", sourceEntity != null ? sourceEntity.getStatus() : "null");
+                    log.warn("目标实体状态: {}", targetEntity != null ? targetEntity.getStatus() : "null");
+                    log.warn("关系确认失败，源实体或目标实体未确认，关系ID: {}", id);
+                    // 关系确认失败，不更新数据库状态，直接返回错误
+                    return AjaxResult.error("关系确认失败：源实体或目标实体未确认");
+                }
+            } catch (Exception e) {
+                log.error("============ 关系确认后存入Neo4j失败 ============");
+                log.error("关系ID: {}", id, e);
+                throw new RuntimeException("关系确认后存入Neo4j失败: " + e.getMessage());
+            }
+        }
+        
+        // 只有在确认成功或拒绝时才更新数据库状态
         ExtRelationshipPoolDO updateObj = new ExtRelationshipPoolDO();
         updateObj.setId(id);
         updateObj.setStatus(status);
@@ -209,30 +254,7 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
         
         extRelationshipPoolMapper.updateById(updateObj);
         
-        // 如果确认关系，则存入Neo4j
-        if (status == 1) { // 已确认
-            try {
-                // 检查两个实体是否都已确认
-                ExtEntityPoolDO sourceEntity = extEntityPoolService.getEntityByEntityId(
-                    relationshipPool.getSourceEntityId(), relationshipPool.getTaskId());
-                ExtEntityPoolDO targetEntity = extEntityPoolService.getEntityByEntityId(
-                    relationshipPool.getTargetEntityId(), relationshipPool.getTaskId());
-                
-                if (sourceEntity != null && targetEntity != null && 
-                    sourceEntity.getStatus() == 1 && targetEntity.getStatus() == 1) {
-                    // 两个实体都已确认，可以创建关系
-                    saveRelationshipToNeo4j(relationshipPool, sourceEntity, targetEntity);
-                    log.info("关系确认成功，已存入Neo4j，关系ID: {}", id);
-                } else {
-                    log.warn("关系确认失败，源实体或目标实体未确认，关系ID: {}", id);
-                    return AjaxResult.error("关系确认失败：源实体或目标实体未确认");
-                }
-            } catch (Exception e) {
-                log.error("关系确认后存入Neo4j失败，关系ID: {}", id, e);
-                throw new RuntimeException("关系确认后存入Neo4j失败: " + e.getMessage());
-            }
-        }
-        
+        log.info("============ 关系处理完成 ============");
         return AjaxResult.success("处理成功");
     }
 
@@ -268,7 +290,6 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
      * @return 处理结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public AjaxResult batchProcessRelationships(List<Long> idList, Integer status, String remark) {
         if (idList == null || idList.isEmpty()) {
             return AjaxResult.error("请选择要处理的关系");
@@ -277,29 +298,60 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
         int successCount = 0;
         int failCount = 0;
         List<String> errorMessages = new ArrayList<>();
+        List<Long> successIds = new ArrayList<>();
+        List<Long> failIds = new ArrayList<>();
         
+        log.info("============ 开始批量处理关系 ============");
+        log.info("待处理关系数量: {}, 状态: {}, 备注: {}", idList.size(), status, remark);
+        
+        // 逐个处理每个关系，每个关系独立处理，成功多少存入多少
         for (Long id : idList) {
             try {
+                log.info("正在处理关系ID: {}", id);
                 AjaxResult result = processRelationship(id, status, remark);
                 if (result.isSuccess()) {
                     successCount++;
+                    successIds.add(id);
+                    log.info("关系ID {} 处理成功", id);
                 } else {
                     failCount++;
-                    errorMessages.add("关系ID " + id + ": " + result.get("msg"));
+                    failIds.add(id);
+                    String errorMsg = "关系ID " + id + ": " + result.get("msg");
+                    errorMessages.add(errorMsg);
+                    log.warn("关系ID {} 处理失败: {}", id, result.get("msg"));
                 }
             } catch (Exception e) {
                 failCount++;
-                errorMessages.add("关系ID " + id + ": " + e.getMessage());
-                log.error("批量处理关系失败，关系ID: {}", id, e);
+                failIds.add(id);
+                String errorMsg = "关系ID " + id + ": " + e.getMessage();
+                errorMessages.add(errorMsg);
+                log.error("批量处理关系异常，关系ID: {}", id, e);
             }
         }
         
-        String message = String.format("批量处理完成：成功 %d 个，失败 %d 个", successCount, failCount);
-        if (!errorMessages.isEmpty()) {
-            message += "。失败详情：" + String.join("; ", errorMessages);
-        }
+        log.info("============ 批量处理关系完成 ============");
+        log.info("成功: {} 个, 失败: {} 个", successCount, failCount);
         
-        return AjaxResult.success(message);
+        // 构建返回结果
+        Map<String, Object> resultData = new HashMap<>();
+        resultData.put("totalCount", idList.size());
+        resultData.put("successCount", successCount);
+        resultData.put("failCount", failCount);
+        resultData.put("successIds", successIds);
+        resultData.put("failIds", failIds);
+        resultData.put("errorMessages", errorMessages);
+        
+        String message;
+        if (failCount == 0) {
+            message = "批量处理成功";
+        } else if (successCount == 0) {
+            message = String.format("批量处理失败：全部 %d 个关系处理失败", idList.size());
+        } else {
+            message = String.format("批量处理部分成功：成功 %d 个，失败 %d 个", successCount, failCount);
+        }
+        resultData.put("message", message);
+        
+        return AjaxResult.success(resultData);
     }
 
     /**
@@ -341,7 +393,7 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
                                        ExtEntityPoolDO sourceEntity, 
                                        ExtEntityPoolDO targetEntity) {
         try {
-            // 构建关系属性
+            // 构建关系属性 - 移除前缀，并处理日期格式
             Map<String, Object> relationshipProperties = new HashMap<>();
             relationshipProperties.put("relationship_type", relationship.getRelationshipType());
             relationshipProperties.put("task_id", relationship.getTaskId());
@@ -349,16 +401,25 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
             relationshipProperties.put("paragraph_index", relationship.getParagraphIndex());
             relationshipProperties.put("workspace_id", relationship.getWorkspaceId());
             relationshipProperties.put("release_status", 1); // 已发布
-            relationshipProperties.put("process_time", relationship.getProcessTime());
-            relationshipProperties.put("process_by", relationship.getProcessBy());
+            
+            // 处理日期格式，转换为ISO 8601格式或时间戳
+            if (relationship.getProcessTime() != null) {
+                // 使用时间戳格式，Neo4j可以正确处理
+                relationshipProperties.put("process_time", relationship.getProcessTime().getTime());
+            }
+            
+            // 处理处理人信息
+            if (relationship.getProcessBy() != null) {
+                relationshipProperties.put("process_by", relationship.getProcessBy());
+            }
             
             // 构建源节点和目标节点的属性映射
             Map<String, Object> sourceNodeMap = new HashMap<>();
-            sourceNodeMap.put("entity_id", sourceEntity.getEntityId());
+            sourceNodeMap.put("id", sourceEntity.getEntityId());
             sourceNodeMap.put("task_id", sourceEntity.getTaskId());
             
             Map<String, Object> targetNodeMap = new HashMap<>();
-            targetNodeMap.put("entity_id", targetEntity.getEntityId());
+            targetNodeMap.put("id", targetEntity.getEntityId());
             targetNodeMap.put("task_id", targetEntity.getTaskId());
             
             // 创建关系
@@ -367,12 +428,15 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
             dynamicRepository.mergeRelationship(label, wrapper, sourceNodeMap, targetNodeMap, 
                 relationship.getRelationshipType(), relationshipProperties);
             
-            log.info("关系已成功存入Neo4j: {} -[{}]-> {}", 
-                sourceEntity.getEntityName(), relationship.getRelationshipType(), targetEntity.getEntityName());
+            log.info("============ 关系已成功存入Neo4j ============");
+            log.info("关系类型: {}", relationship.getRelationshipType());
+            log.info("源实体: {}", sourceEntity.getEntityName());
+            log.info("目标实体: {}", targetEntity.getEntityName());
             
         } catch (Exception e) {
-            log.error("关系存入Neo4j失败: {} -[{}]-> {}", 
-                sourceEntity.getEntityName(), relationship.getRelationshipType(), targetEntity.getEntityName(), e);
+            log.error("============ 关系存入Neo4j失败 ============");
+            log.error("关系信息: {}", JSON.toJSONString(relationship));
+            log.error("错误详情: ", e);
             throw new RuntimeException("关系存入Neo4j失败: " + e.getMessage());
         }
     }

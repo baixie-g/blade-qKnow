@@ -44,8 +44,6 @@ public class Neo4jBuildWrapper<T> {
      * @return
      */
     public String mergeCreateNode(String label, Map<String, Object> mergeMap, Map<String, Object> attributeMap) {
-        String prefixName = LambdaUtils.processCompositeProperties(this.entityClass);
-
         StringBuilder query = new StringBuilder();
         if(!mergeMap.isEmpty()){
             ArrayList<String> arrayList = mergeAttByMap(mergeMap);
@@ -82,8 +80,8 @@ public class Neo4jBuildWrapper<T> {
                 if (attributes.length() > 0) {
                     attributes.append(", ");  // 每个属性对之间添加逗号
                 }
-                // 拼接属性字符串
-                attributes.append(prefixName + key + ": " + valueString);
+                // 拼接属性字符串 - 移除前缀
+                attributes.append(key + ": " + valueString);
             }
 
             query.append(attributes);
@@ -136,8 +134,6 @@ public class Neo4jBuildWrapper<T> {
 
     @NotNull
     private ArrayList<String> mergeAttByMap(Map<String, Object> mergeMap) {
-        String prefixName = LambdaUtils.processCompositeProperties(this.entityClass);
-
         ArrayList<String> arrayList = new ArrayList<>();
         for (Map.Entry<String, Object> objectEntry : mergeMap.entrySet()) {
             String key = objectEntry.getKey();
@@ -159,8 +155,8 @@ public class Neo4jBuildWrapper<T> {
                 valueString = value.toString();
             }
 
-            // 拼接字符串
-            arrayList.add(prefixName + key + ": " + valueString);
+            // 拼接字符串 - 移除前缀
+            arrayList.add(key + ": " + valueString);
         }
         return arrayList;
     }

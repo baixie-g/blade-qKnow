@@ -3,6 +3,7 @@ package tech.qiantong.qknow.neo4j.utils;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import org.neo4j.driver.Value;
+import tech.qiantong.qknow.neo4j.domain.relationship.DynamicEntityRelationship;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -97,22 +98,43 @@ public class Convert {
             for (Object entity : entityList) {
                 // 处理实体信息
                 JSONObject entityJson = new JSONObject();
+                // 处理 id 字段
                 Field idField = getField(entity.getClass(), "id");
-                assert idField != null;
-                idField.setAccessible(true);
-                Object id = idField.get(entity);
-                entityJson.put("id", id);
+                if (idField != null) {
+                    idField.setAccessible(true);
+                    Object id = idField.get(entity);
+                    entityJson.put("id", id);
+                }
+
+                // 处理 type 字段
+                Field typeField = getField(entity.getClass(), "type");
+                if (typeField != null) {
+                    typeField.setAccessible(true);
+                    Object type = typeField.get(entity);
+                    entityJson.put("type", type);
+                }
+
+                // 处理 name 字段
+                Field nameField = getField(entity.getClass(), "name");
+                if (nameField != null) {
+                    nameField.setAccessible(true);
+                    Object name = nameField.get(entity);
+                    entityJson.put("name", name);
+                }
 
                 Field dynamicPropertiesField = getField(entity.getClass(), "dynamicProperties");
                 if (dynamicPropertiesField != null) {
                     dynamicPropertiesField.setAccessible(true);
                     // 对 dynamicProperties 中的键进行转换并添加到 entityJson 中
                     Map<String, Object> dynamicProperties = (Map<String, Object>) dynamicPropertiesField.get(entity);
-                    for (Map.Entry<String, Object> entry : dynamicProperties.entrySet()) {
-                        String snakeKey = entry.getKey();
-                        String camelKey = snakeToCamel(snakeKey);
-                        Value value = (Value) entry.getValue();
-                        entityJson.put(camelKey, value.asObject());
+                    if (dynamicProperties != null) {
+                        for (Map.Entry<String, Object> entry : dynamicProperties.entrySet()) {
+                            String snakeKey = entry.getKey();
+                            String camelKey = snakeToCamel(snakeKey);
+                            Object value = entry.getValue();
+                            // 移除对 Neo4j Value 类型的强制转换，直接使用原始值
+                            entityJson.put(camelKey, value);
+                        }
                     }
                 }
                 entities.add(entityJson);
@@ -121,41 +143,46 @@ public class Convert {
                 Field relationshipMapField = getField(entity.getClass(), "relationshipEntityMap");
                 if (relationshipMapField != null) {
                     relationshipMapField.setAccessible(true);
-                    Map<String, List<?>> relationshipMap = (Map<String, List<?>>) relationshipMapField.get(entity);
+                    Map<String, List<DynamicEntityRelationship>> relationshipMap = (Map<String, List<DynamicEntityRelationship>>) relationshipMapField.get(entity);
                     if (relationshipMap != null) {
-                        for (Map.Entry<String, List<?>> entry : relationshipMap.entrySet()) {
+                        for (Map.Entry<String, List<DynamicEntityRelationship>> entry : relationshipMap.entrySet()) {
                             String relationshipName = entry.getKey();
-                            for (Object relObject : entry.getValue()) {
-                                // 直接处理GraphEntityRelationship对象
-                                Field endNodeField = getField(relObject.getClass(), "endNode");
-                                if (endNodeField != null) {
-                                    endNodeField.setAccessible(true);
-                                    Object endNode = endNodeField.get(relObject);
-                                    Field relationshipId = getField(relObject.getClass(), "id");
-                                    assert relationshipId != null;
-                                    relationshipId.setAccessible(true);
-                                    JSONObject relationshipJson = new JSONObject();
-                                    relationshipJson.put("id", relationshipId.get(relObject));
-                                    relationshipJson.put("startId", id);
-                                    relationshipJson.put("startName", entityJson.get("name"));
+                            List<DynamicEntityRelationship> relationshipList = entry.getValue();
+                            for (DynamicEntityRelationship relationship : relationshipList) {
+                                JSONObject relationshipJson = new JSONObject();
+                                relationshipJson.put("id", relationship.getId());
+                                relationshipJson.put("startId", entityJson.get("id"));
+                                relationshipJson.put("startName", entityJson.get("name"));
 
-                                    if (endNode != null) {
-                                        Field endIdField = getField(endNode.getClass(), "id");
+                                Object endNode = relationship.getEndNode();
+                                if (endNode != null) {
+                                    Field endIdField = getField(endNode.getClass(), "id");
+                                    if (endIdField != null) {
                                         endIdField.setAccessible(true);
                                         Long endId = (Long) endIdField.get(endNode);
                                         relationshipJson.put("endId", endId);
 
-                                        Field endNameField = getField(endNode.getClass(), "dynamicProperties");
+                                        // 获取目标实体的名称
+                                        Field endNameField = getField(endNode.getClass(), "name");
                                         if (endNameField != null) {
                                             endNameField.setAccessible(true);
-                                            Map<String, Object> map = (Map<String, Object>) endNameField.get(endNode);
-                                            Value name = (Value) map.get("name");
-                                            relationshipJson.put("endName", name.asObject());
+                                            Object endName = endNameField.get(endNode);
+                                            relationshipJson.put("endName", endName);
+                                        } else {
+                                            // 如果没有 name 字段，尝试从 dynamicProperties 获取
+                                            Field endDynamicPropertiesField = getField(endNode.getClass(), "dynamicProperties");
+                                            if (endDynamicPropertiesField != null) {
+                                                endDynamicPropertiesField.setAccessible(true);
+                                                Map<String, Object> endDynamicProperties = (Map<String, Object>) endDynamicPropertiesField.get(endNode);
+                                                if (endDynamicProperties != null && endDynamicProperties.containsKey("name")) {
+                                                    relationshipJson.put("endName", endDynamicProperties.get("name"));
+                                                }
+                                            }
                                         }
                                     }
-                                    relationshipJson.put("relationType", relationshipName);
-                                    relationships.add(relationshipJson);
                                 }
+                                relationshipJson.put("relationType", relationshipName);
+                                relationships.add(relationshipJson);
                             }
                         }
                     }

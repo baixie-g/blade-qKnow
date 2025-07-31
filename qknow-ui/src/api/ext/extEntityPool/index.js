@@ -79,4 +79,32 @@ export function confirmDisambiguation(entityPoolId, candidateId, remark) {
     method: 'post',
     params: { entityPoolId, candidateId, remark }
   })
+}
+
+// 批量处理实体（确认或拒绝）
+export function batchProcessEntities(idList, status, remark) {
+  return request({
+    url: '/ext/entityPool/batch-process',
+    method: 'post',
+    data: { idList, status, remark }
+  })
+}
+
+// 获取候选实体详细信息
+export function getCandidateEntityDetails(candidateId) {
+  return request({
+    url: '/ext/entityPool/candidate-details',
+    method: 'get',
+    params: { candidateId }
+  })
+}
+
+// 合并实体信息
+export function mergeEntityInfo(entityPoolId, candidateId, mergeFields, remark) {
+  return request({
+    url: '/ext/entityPool/merge-entity',
+    method: 'post',
+    params: { entityPoolId, candidateId, remark },
+    data: mergeFields
+  })
 } 

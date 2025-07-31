@@ -28,8 +28,10 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 实体池 Controller
@@ -210,6 +212,43 @@ public class ExtEntityPoolController extends BaseController {
     }
 
     /**
+     * 批量处理实体（确认或拒绝）
+     *
+     * @param idList 实体ID列表
+     * @param status 处理状态 1：已确认，2：已拒绝
+     * @param remark 处理备注
+     * @return 处理结果
+     */
+    @PostMapping("/batch-process")
+    @Operation(summary = "批量处理实体")
+    // @PreAuthorize("@ss.hasPermi('ext:extEntityPool:process')")
+    @Log(title = "实体池", businessType = BusinessType.UPDATE)
+    public CommonResult<Object> batchProcessEntities(@RequestBody Map<String, Object> requestBody) {
+        // 正确处理ID列表的类型转换
+        List<?> idListObj = (List<?>) requestBody.get("idList");
+        List<Long> idList = new ArrayList<>();
+        for (Object id : idListObj) {
+            if (id instanceof Integer) {
+                idList.add(((Integer) id).longValue());
+            } else if (id instanceof Long) {
+                idList.add((Long) id);
+            } else {
+                idList.add(Long.valueOf(id.toString()));
+            }
+        }
+        
+        Integer status = (Integer) requestBody.get("status");
+        String remark = (String) requestBody.get("remark");
+        
+        AjaxResult result = extEntityPoolService.batchProcessEntities(idList, status, remark);
+        if (result.isSuccess()) {
+            return CommonResult.success(result.get("data"));
+        } else {
+            return CommonResult.error(500, result.get("msg").toString());
+        }
+    }
+
+    /**
      * 实体消歧 - 获取候选实体
      *
      * @param entityPoolId 实体池ID
@@ -240,5 +279,49 @@ public class ExtEntityPoolController extends BaseController {
                                                       @RequestParam("candidateId") String candidateId,
                                                       @RequestParam(value = "remark", required = false) String remark) {
         return CommonResult.success(extEntityPoolService.confirmDisambiguation(entityPoolId, candidateId, remark));
+    }
+
+    /**
+     * 获取候选实体的详细信息
+     *
+     * @param candidateId 候选实体ID
+     * @return 候选实体详细信息
+     */
+    @GetMapping("/candidate-details")
+    @Operation(summary = "获取候选实体详细信息")
+    // @PreAuthorize("@ss.hasPermi('ext:extEntityPool:query')")
+    public CommonResult<Object> getCandidateEntityDetails(@RequestParam("candidateId") String candidateId) {
+        AjaxResult result = extEntityPoolService.getCandidateEntityDetails(candidateId);
+        if (result.isSuccess()) {
+            return CommonResult.success(result.get("data"));
+        } else {
+            return CommonResult.error(500, result.get("msg").toString());
+        }
+    }
+
+    /**
+     * 合并实体信息
+     *
+     * @param entityPoolId 实体池ID
+     * @param candidateId 候选实体ID
+     * @param mergeFields 要合并的字段配置列表
+     * @param remark 备注
+     * @return 合并结果
+     */
+    @PostMapping("/merge-entity")
+    @Operation(summary = "合并实体信息")
+    // @PreAuthorize("@ss.hasPermi('ext:extEntityPool:process')")
+    @Log(title = "实体池", businessType = BusinessType.UPDATE)
+    public CommonResult<Object> mergeEntityInfo(
+            @RequestParam("entityPoolId") Long entityPoolId,
+            @RequestParam("candidateId") String candidateId,
+            @RequestBody List<Map<String, Object>> mergeFields,
+            @RequestParam(value = "remark", required = false) String remark) {
+        AjaxResult result = extEntityPoolService.mergeEntityInfo(entityPoolId, candidateId, mergeFields, remark);
+        if (result.isSuccess()) {
+            return CommonResult.success(result.get("data"));
+        } else {
+            return CommonResult.error(500, result.get("msg").toString());
+        }
     }
 } 

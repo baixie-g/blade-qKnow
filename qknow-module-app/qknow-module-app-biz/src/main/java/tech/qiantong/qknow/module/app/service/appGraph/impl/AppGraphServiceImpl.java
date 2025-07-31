@@ -50,6 +50,13 @@ public class AppGraphServiceImpl implements AppGraphService {
     public Map<String, Object> getGraph(AppGraphVO appGraphVO) {
         Neo4jQueryWrapper<DynamicEntity> build = new Neo4jQueryWrapper<>(DynamicEntity.class);
         Neo4jLabelEnum neo4jLabelEnum = get(appGraphVO.getEntityType());
+        
+        // 添加空值检查，避免 NullPointerException
+        if (neo4jLabelEnum == null) {
+            log.warn("无效的 entityType: {}, 使用默认的 DYNAMICENTITY 查询", appGraphVO.getEntityType());
+            neo4jLabelEnum = Neo4jLabelEnum.DYNAMICENTITY;
+        }
+        
         if (Neo4jLabelEnum.DYNAMICENTITY.eq(neo4jLabelEnum.getCode())) {
             build.eq("release_status", ReleaseStatus.PUBLISHED.getValue()); //发布状态
         } else {
@@ -70,7 +77,10 @@ public class AppGraphServiceImpl implements AppGraphService {
     public PageResult<JSONObject> getGraphPage(AppGraphPageReqVO appGraphVO) {
         Neo4jQueryWrapper<DynamicEntity> build = new Neo4jQueryWrapper<>(DynamicEntity.class);
         Neo4jLabelEnum neo4jLabelEnum = get(appGraphVO.getEntityType());
+        
+        // 添加空值检查，避免 NullPointerException
         if (neo4jLabelEnum == null) {
+            log.warn("无效的 entityType: {}, 使用默认的 DYNAMICENTITY 查询", appGraphVO.getEntityType());
             build.eq("release_status", ReleaseStatus.PUBLISHED.getValue()); //发布状态
         } else {
             build.addLabels(neo4jLabelEnum.getLabel());
@@ -123,7 +133,7 @@ public class AppGraphServiceImpl implements AppGraphService {
                 .collect(Collectors.toSet());
         List<DynamicEntity> entityList = dynamicRepository.findAllById(idSet);
         Map<Long, DynamicEntity> entityMap = entityList.stream()
-                .collect(Collectors.toMap(DynamicEntity::getId, entity -> entity));
+                .collect(Collectors.toMap(DynamicEntity::getNeo4jId, entity -> entity));
         List<DynamicEntity> dynamicEntityList = Lists.newArrayList();
         for (int i = 0; i < jsonArray.size(); i++) {
             JSONObject jsonObject = jsonArray.getJSONObject(i);
@@ -164,7 +174,7 @@ public class AppGraphServiceImpl implements AppGraphService {
         // 查询出所有的实体
         List<DynamicEntity> graphEntityList = dynamicRepository.findAllById(idSet);
         Map<Long, DynamicEntity> graphEntityMap = graphEntityList.stream()
-                .collect(Collectors.toMap(DynamicEntity::getId, graphEntity -> graphEntity));
+                .collect(Collectors.toMap(DynamicEntity::getNeo4jId, graphEntity -> graphEntity));
         List<Long> relationshipIds = graphRelationshipSaveReqVOList.stream()
                 .map(AppGraphRelationshipSaveReqVO::getId)
                 .filter(Objects::nonNull)

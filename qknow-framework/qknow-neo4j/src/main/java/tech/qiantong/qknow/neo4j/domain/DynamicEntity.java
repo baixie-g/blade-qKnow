@@ -21,17 +21,41 @@ import java.util.Set;
 public class DynamicEntity {
     @Id
     @GeneratedValue
-    Long id;
+    Long neo4jId;
 
     @Property(name = "name")
     private String name;
+
+    @Property(name = "id")
+    private String id;
+
+    @Property(name = "type")
+    private String type;
+
+    public Long getNeo4jId() {
+        return neo4jId;
+    }
+    public void setNeo4jId(Long neo4jId) {
+        this.neo4jId = neo4jId;
+    }
+    public String getId() {
+        return id;
+    }
+    public void setId(String id) {
+        this.id = id;
+    }
+    public String getType() {
+        return type;
+    }
+    public void setType(String type) {
+        this.type = type;
+    }
 
     // 动态节点
     @DynamicLabels
     private Set<String> labels = Sets.newHashSet();
 
-    // 动态属性
-    @CompositeProperty(prefix = "", delimiter = "_")
+    // 动态属性 - 移除前缀
     private Map<String, Object> dynamicProperties = Maps.newHashMap();
 
     // 建立关系

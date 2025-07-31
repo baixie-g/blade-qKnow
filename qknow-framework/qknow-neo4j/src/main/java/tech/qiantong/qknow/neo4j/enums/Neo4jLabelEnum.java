@@ -4,7 +4,7 @@ import lombok.Getter;
 
 @Getter
 public enum Neo4jLabelEnum {
-    DYNAMICENTITY( "DynamicEntity", 0, ""), //公共标签
+    DYNAMICENTITY( "Entity", 0, ""), //公共标签
     STRUCTURED( "ExtStruck", 1, "task_id"), // 结构化
     UNSTRUCTURED("ExtUnStruck", 2, "task_id"), // 非结构化
     GRAPHENTITY("GraphEntity", 3, "graph_id"); // 故障

@@ -10,6 +10,8 @@ import tech.qiantong.qknow.module.ext.controller.admin.extEntityPool.vo.ExtEntit
 import tech.qiantong.qknow.module.ext.controller.admin.extEntityPool.vo.ExtEntityPoolSaveReqVO;
 import tech.qiantong.qknow.module.ext.dal.dataobject.extEntityPool.ExtEntityPoolDO;
 
+import java.util.Map;
+
 /**
  * 实体池 Service 接口
  *
@@ -143,4 +145,23 @@ public interface IExtEntityPoolService {
      * @return 实体池记录
      */
     ExtEntityPoolDO getEntityByEntityId(String entityId, Long taskId);
+
+    /**
+     * 获取候选实体的详细信息
+     *
+     * @param candidateId 候选实体ID
+     * @return 候选实体详细信息
+     */
+    AjaxResult getCandidateEntityDetails(String candidateId);
+
+    /**
+     * 合并实体信息
+     *
+     * @param entityPoolId 实体池ID
+     * @param candidateId 候选实体ID
+     * @param mergeFields 要合并的字段配置列表，每个字段包含fieldName、mergeType，手动模式下还包含value
+     * @param remark 备注
+     * @return 合并结果
+     */
+    AjaxResult mergeEntityInfo(Long entityPoolId, String candidateId, List<Map<String, Object>> mergeFields, String remark);
 } 

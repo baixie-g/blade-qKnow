@@ -259,6 +259,11 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
                 if (ajaxResult.isSuccess()) {
                     log.info("============>抽取文本成功：{}", text);
                     
+                    // 生成统一的时间戳后缀，用于所有实体和关系的ID
+                    long timestamp = System.currentTimeMillis();
+                    String timestampSuffix = "_" + timestamp;
+                    log.info("============ 生成时间戳后缀: {} ============", timestampSuffix);
+                    
                     // 解析返回结果 - 修复FastJSON版本兼容性问题
                     Object dataObj = ajaxResult.get("data");
                     JSONObject result;
@@ -282,6 +287,10 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
                     
                     for (int j = 0; j < nodes.size(); j++) {
                         JSONObject node = nodes.getJSONObject(j);
+                        
+                        // 为实体ID添加时间戳后缀
+                        String originalEntityId = node.getString("id");
+                        String newEntityId = originalEntityId + timestampSuffix;
                         
                         // 处理aliases字段 - 确保是JSON字符串格式
                         String aliasesStr = "";
@@ -310,7 +319,7 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
                             .taskId(unstructTaskDO.getId())
                             .docId(extUnstructTaskDocRelDO.getDocId())
                             .paragraphIndex(i)
-                            .entityId(node.getString("id"))
+                            .entityId(newEntityId) // 使用带时间戳后缀的ID
                             .entityName(node.getString("name"))
                             .entityType(node.getString("type"))
                             .aliases(aliasesStr)
@@ -329,8 +338,8 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
                         entityPool.setUpdateTime(new Date());
                         entityPoolList.add(entityPool);
                         
-                        log.info("准备保存实体: ID={}, 名称={}, 类型={}", 
-                            entityPool.getEntityId(), entityPool.getEntityName(), entityPool.getEntityType());
+                        log.info("准备保存实体: 原始ID={}, 新ID={}, 名称={}, 类型={}", 
+                            originalEntityId, newEntityId, entityPool.getEntityName(), entityPool.getEntityType());
                     }
                     
                     // 批量保存实体到池子
@@ -353,13 +362,20 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
                     
                     for (int j = 0; j < relationships.size(); j++) {
                         JSONObject relationship = relationships.getJSONObject(j);
+                        
+                        // 为关系的源实体和目标实体ID添加时间戳后缀
+                        String originalSourceId = relationship.getString("source");
+                        String originalTargetId = relationship.getString("target");
+                        String newSourceId = originalSourceId + timestampSuffix;
+                        String newTargetId = originalTargetId + timestampSuffix;
+                        
                         ExtRelationshipPoolDO relationshipPool = ExtRelationshipPoolDO.builder()
                             .workspaceId(unstructTaskDO.getWorkspaceId())
                             .taskId(unstructTaskDO.getId())
                             .docId(extUnstructTaskDocRelDO.getDocId())
                             .paragraphIndex(i)
-                            .sourceEntityId(relationship.getString("source"))
-                            .targetEntityId(relationship.getString("target"))
+                            .sourceEntityId(newSourceId) // 使用带时间戳后缀的源实体ID
+                            .targetEntityId(newTargetId) // 使用带时间戳后缀的目标实体ID
                             .relationshipType(relationship.getString("type"))
                             .status(0) // 待处理
                             .validFlag(true)
@@ -374,8 +390,8 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
                         relationshipPool.setUpdateTime(new Date());
                         relationshipPoolList.add(relationshipPool);
                         
-                        log.info("准备保存关系: 源实体={}, 目标实体={}, 关系类型={}", 
-                            relationshipPool.getSourceEntityId(), relationshipPool.getTargetEntityId(), relationshipPool.getRelationshipType());
+                        log.info("准备保存关系: 原始源实体={}, 新源实体={}, 原始目标实体={}, 新目标实体={}, 关系类型={}", 
+                            originalSourceId, newSourceId, originalTargetId, newTargetId, relationshipPool.getRelationshipType());
                     }
                     
                     // 批量保存关系到池子

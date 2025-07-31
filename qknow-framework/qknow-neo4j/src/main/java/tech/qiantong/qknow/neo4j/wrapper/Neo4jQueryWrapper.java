@@ -35,12 +35,13 @@ public class Neo4jQueryWrapper<T> {
 
     // 公共条件构建方法
     private <R> Neo4jQueryWrapper<T> addCondition(String propertyName, String operator, R value) {
-        String prefixName = LambdaUtils.processCompositeProperties(this.entityClass);
+        // 修复id字段的处理逻辑
         if ("id".equals(propertyName)) {
-            conditions.add(propertyName + "(n) " + operator + " $" + propertyName);
+            // 查询节点的id属性，而不是使用id()函数
+            conditions.add("n." + propertyName + " " + operator + " $" + propertyName);
             params.put(propertyName, value);
         } else {
-            conditions.add("n." + prefixName + propertyName + " " + operator + " $" + propertyName);
+            conditions.add("n." + propertyName + " " + operator + " $" + propertyName);
             params.put(propertyName, value);
         }
         return this;
@@ -48,20 +49,19 @@ public class Neo4jQueryWrapper<T> {
 
     // 处理like的特殊情况
     private <R> Neo4jQueryWrapper<T> addLikeCondition(String propertyName, R value) {
-        String prefixName = LambdaUtils.processCompositeProperties(this.entityClass);
         if (value instanceof Number) {
             // CONTAINS实现方式
-            conditions.add("toString(n." + prefixName + propertyName + ") CONTAINS $" + propertyName);
+            conditions.add("toString(n." + propertyName + ") CONTAINS $" + propertyName);
             params.put(propertyName, String.valueOf(value));
             // 正则实现方式
-            //conditions.add("toString(n." + prefixName + propertyName + ") =~ $" + propertyName);
+            //conditions.add("toString(n." + propertyName + ") =~ $" + propertyName);
             //params.put(propertyName, ".*" + value + ".*");
         } else {
             // CONTAINS实现方式
-            conditions.add("n." + prefixName + propertyName + " CONTAINS $" + propertyName);
+            conditions.add("n." + propertyName + " CONTAINS $" + propertyName);
             params.put(propertyName, String.valueOf(value));
             // 正则实现方式
-            //conditions.add("n." + prefixName + propertyName + " =~ $" + propertyName);
+            //conditions.add("n." + propertyName + " =~ $" + propertyName);
             //params.put(propertyName, ".*" + value + ".*");
         }
         return this;
@@ -69,10 +69,9 @@ public class Neo4jQueryWrapper<T> {
 
     // 处理between的特殊情况
     private <R extends Comparable<R>> Neo4jQueryWrapper<T> addBetweenCondition(String propertyName, R start, R end) {
-        String prefixName = LambdaUtils.processCompositeProperties(this.entityClass);
         String startKey = propertyName + "Start";
         String endKey = propertyName + "End";
-        conditions.add("n." + prefixName + propertyName + " >= $" + startKey + " AND n." + prefixName + " <= $" + endKey);
+        conditions.add("n." + propertyName + " >= $" + startKey + " AND n." + propertyName + " <= $" + endKey);
         params.put(startKey, start);
         params.put(endKey, end);
         return this;

@@ -66,6 +66,12 @@
                             <i class="iconfont-mini icon-xinzeng mr5"></i>新增
                         </el-button>
                     </el-col>
+                    <el-col :span="1.5">
+                        <el-button type="success" plain @click="handleManualConsumeQueue"
+                                   @mousedown="(e) => e.preventDefault()">
+                            <i class="iconfont-mini icon-play mr5"></i>手动消费队列
+                        </el-button>
+                    </el-col>
                 </el-row>
                 <div class="justify-end top-right-btn">
                     <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"
@@ -267,7 +273,8 @@
         delUnstructTask,
         addUnstructTask,
         updateUnstructTask,
-        executeExtraction
+        executeExtraction,
+        manualConsumeQueue
     } from "@/api/ext/extUnstructTask/unstructTask";
     import { getExtSchemaAllList } from "@/api/ext/extSchema/schema";
     import {getToken} from "@/utils/auth.js";
@@ -663,6 +670,22 @@
                 proxy.$modal.msgSuccess("操作成功,执行中");
                 getList();
             }).catch(error => {
+            });
+        }).catch(() => {
+        });
+    }
+
+    /** 手动消费队列 */
+    function handleManualConsumeQueue() {
+        proxy.$modal.confirm('是否确认手动消费队列？').then(function () {
+        }).then(() => {
+            manualConsumeQueue().then(response => {
+                console.log('---手动消费队列-------', response)
+                proxy.$modal.msgSuccess("手动消费成功");
+                getList();
+            }).catch(error => {
+                console.error('手动消费队列失败:', error);
+                proxy.$modal.msgError("手动消费失败: " + (error.message || '未知错误'));
             });
         }).catch(() => {
         });

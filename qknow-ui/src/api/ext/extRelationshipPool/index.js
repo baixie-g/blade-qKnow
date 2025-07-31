@@ -61,4 +61,13 @@ export function processRelationship(id, status, remark) {
     method: 'post',
     params: { id, status, remark }
   })
+}
+
+// 批量处理关系（确认或拒绝）
+export function batchProcessRelationships(idList, status, remark) {
+  return request({
+    url: '/ext/relationshipPool/batch-process',
+    method: 'post',
+    data: { idList, status, remark }
+  })
 } 
