@@ -368,12 +368,29 @@ const schemaList = ref({ data: { rows: [] } });
 //查询抽取结果
 function getGraphData(params) {
   appLoading.value = true;
+  console.log("开始查询图谱数据，参数:", params);
+  
   getGraph(params).then((response) => {
     appLoading.value = false;
+    console.log("图谱数据查询响应:", response);
+    
     let data = response.data;
+    if (!data) {
+      console.warn("响应数据为空");
+      return;
+    }
+    
+    console.log("实体数量:", data.entities ? data.entities.length : 0);
+    console.log("关系数量:", data.relationships ? data.relationships.length : 0);
+    
     // step：普通：0，特殊颜色：1，选中：2，相邻节点：-1
     nodes.value = data.entities.map((item) => {
+      console.log("处理实体:", item.name, "schemaId:", item.schemaId, "type:", item.type);
+      console.log("可用schema:", schemaList.value.data.rows);
+      
       let row = schemaList.value.data.rows.find((i) => item.schemaId == i.id);
+      console.log("匹配的schema:", row);
+      
       return {
         ...item,
         id: item.id + "",
@@ -416,10 +433,14 @@ function getGraphData(params) {
     }
     //设置画布
     setGraph(graphData.value);
-    if (data.length != 0) {
+    if (data.entities && data.entities.length != 0) {
       // 初始化树结构
       initTree();
     }
+  }).catch(error => {
+    appLoading.value = false;
+    console.error("查询图谱数据失败:", error);
+    proxy.$modal.msgError("查询图谱数据失败: " + (error.message || '未知错误'));
   });
 }
 
@@ -653,12 +674,26 @@ onMounted(async () => {
       icon: item.color,
     });
   });
-  //查询抽取结果
+  
+  // 检查是否有有效的查询参数
   let params = {
     entityType: taskInfo.value.pageType,
     entityId: taskInfo.value.id,
   };
+  
+  // 如果是图谱探索页面（pageType为0）且没有指定entityId，则查询所有已发布的实体
+  if (taskInfo.value.pageType === "0" && (!taskInfo.value.id || taskInfo.value.id === "")) {
+    console.log("图谱探索模式：查询所有已发布的实体");
+    // 对于图谱探索，使用entityType=0表示查询所有已发布的实体
+    params = {
+      entityType: 0,
+      entityId: null
+    };
+  }
+  
+  console.log("查询参数:", params);
   getGraphData(params);
+  
   //根据taskId获取段落数据和文档
   if (taskInfo.value.pageType == "2" || taskInfo.value.pageType == "0") {
     getTextListAndDocList(params);
@@ -976,13 +1011,17 @@ const getAttrData = (node) => {
   attrData.value = [];
   let attributeIdList = [];
   let attributeList = [];
+  
+  // 检查是否有attributeId属性
   for (let key in node) {
     if (key.includes("attributeId")) {
       attributeIdList.push(key);
       attributeList.push({ key: key, value: node[key] });
     }
   }
+  
   if (attributeIdList.length > 0) {
+    // 原有的attributeId处理逻辑
     let attributeIdString = attributeIdList.join(",");
     getAttributeInformation(attributeIdString).then((res) => {
       if (res && res.code == 200) {
@@ -998,6 +1037,28 @@ const getAttrData = (node) => {
       }
     });
   } else {
+    // 如果没有attributeId属性，显示实体的基本属性
+    console.log("实体没有attributeId属性，显示基本属性:", node);
+    
+    // 添加基本属性
+    const basicAttributes = [
+      { name: "实体名称", dataValue: node.name || "-", dataType: 1 },
+      { name: "实体类型", dataValue: node.type || "-", dataType: 1 },
+      { name: "实体ID", dataValue: node.id || "-", dataType: 1 },
+      { name: "工作区ID", dataValue: node.workspace_id || "-", dataType: 1 },
+      { name: "任务ID", dataValue: node.task_id || "-", dataType: 1 },
+      { name: "文档ID", dataValue: node.doc_id || "-", dataType: 1 },
+      { name: "段落索引", dataValue: node.paragraph_index || "-", dataType: 1 },
+      { name: "实体别名", dataValue: node.aliases || "-", dataType: 1 },
+      { name: "实体定义", dataValue: node.definition || "-", dataType: 1 },
+      { name: "实体属性", dataValue: node.attributes || "-", dataType: 1 },
+      { name: "发布状态", dataValue: node.release_status === 1 ? "已发布" : "未发布", dataType: 1 },
+      { name: "处理时间", dataValue: node.process_time || "-", dataType: 1 },
+      { name: "处理人", dataValue: node.process_by || "-", dataType: 1 }
+    ];
+    
+    // 过滤掉值为"-"的属性
+    attrData.value = basicAttributes.filter(attr => attr.dataValue !== "-");
     attrLoading.value = false;
   }
 };
@@ -1048,7 +1109,20 @@ const attrFormSubmit = () => {
 };
 // 关联三元组
 const getTripletData = (id) => {
-  tripletData.value = edges.value.filter((e) => e.startId == id || e.endId == id);
+  console.log("获取关联三元组，实体ID:", id);
+  console.log("所有关系数据:", edges.value);
+  
+  // 确保ID类型匹配
+  const entityId = id.toString();
+  tripletData.value = edges.value.filter((e) => {
+    const startId = e.startId ? e.startId.toString() : "";
+    const endId = e.endId ? e.endId.toString() : "";
+    const matches = startId === entityId || endId === entityId;
+    console.log(`关系 ${e.id}: startId=${startId}, endId=${endId}, entityId=${entityId}, matches=${matches}`);
+    return matches;
+  });
+  
+  console.log("过滤后的三元组数据:", tripletData.value);
 };
 const tripletLoading = ref(false);
 const tripletData = ref([]);

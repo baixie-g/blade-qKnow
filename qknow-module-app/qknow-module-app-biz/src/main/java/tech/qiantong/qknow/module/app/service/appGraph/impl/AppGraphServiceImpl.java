@@ -5,6 +5,8 @@ import com.alibaba.fastjson2.JSONObject;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.neo4j.core.Neo4jClient;
 import org.springframework.stereotype.Service;
 import tech.qiantong.qknow.common.core.domain.AjaxResult;
 import tech.qiantong.qknow.common.core.page.PageResult;
@@ -39,6 +41,9 @@ public class AppGraphServiceImpl implements AppGraphService {
 
     @Resource
     private DynamicRepository dynamicRepository;
+    
+    @Autowired
+    private Neo4jClient neo4jClient;
 
     /**
      * 获取图谱数据
@@ -48,46 +53,193 @@ public class AppGraphServiceImpl implements AppGraphService {
      */
     @Override
     public Map<String, Object> getGraph(AppGraphVO appGraphVO) {
-        Neo4jQueryWrapper<DynamicEntity> build = new Neo4jQueryWrapper<>(DynamicEntity.class);
-        Neo4jLabelEnum neo4jLabelEnum = get(appGraphVO.getEntityType());
-        
-        // 添加空值检查，避免 NullPointerException
-        if (neo4jLabelEnum == null) {
-            log.warn("无效的 entityType: {}, 使用默认的 DYNAMICENTITY 查询", appGraphVO.getEntityType());
-            neo4jLabelEnum = Neo4jLabelEnum.DYNAMICENTITY;
-        }
-        
-        if (Neo4jLabelEnum.DYNAMICENTITY.eq(neo4jLabelEnum.getCode())) {
-            build.eq("release_status", ReleaseStatus.PUBLISHED.getValue()); //发布状态
-        } else {
-            build.addLabels(neo4jLabelEnum.getLabel());
-            if(appGraphVO.getEntityId() != null){
-                build.eq(neo4jLabelEnum.getEntityIdName(), appGraphVO.getEntityId());
+        // 特殊处理：当entityType为0时，查询所有已发布的Entity标签实体（图谱探索模式）
+        if (appGraphVO.getEntityType() != null && appGraphVO.getEntityType() == 0) {
+            log.info("图谱探索模式：查询所有已发布的Entity标签实体");
+            
+            // 先测试查询所有Entity标签的节点
+            String testQuery = "MATCH (n:Entity) RETURN n LIMIT 5";
+            List<Map<String, Object>> testResults = new ArrayList<>(neo4jClient.query(testQuery)
+                .fetch()
+                .all());
+            log.info("测试查询结果数量: {}", testResults.size());
+            
+            // 如果找到了Entity节点，再查询带条件的
+            if (testResults.isEmpty()) {
+                log.warn("未找到任何Entity标签的节点，尝试查询所有节点");
+                String allNodesQuery = "MATCH (n) RETURN labels(n) as labels, n.name as name LIMIT 10";
+                List<Map<String, Object>> allNodesResults = new ArrayList<>(neo4jClient.query(allNodesQuery)
+                    .fetch()
+                    .all());
+                log.info("所有节点查询结果: {}", allNodesResults);
             }
+            
+            // 使用Neo4jClient直接执行Cypher查询
+            String cypherQuery = "MATCH (n:Entity) WHERE n.release_status = $releaseStatus " +
+                               "OPTIONAL MATCH (n)-[r]->(related) " +
+                               "RETURN n, collect(r), collect(related)";
+            
+            Map<String, Object> params = Maps.newHashMap();
+            params.put("releaseStatus", ReleaseStatus.PUBLISHED.getValue());
+            
+            log.info("执行Cypher查询: {}", cypherQuery);
+            log.info("查询参数: {}", params);
+            
+            // 执行查询并手动构建结果
+            List<Map<String, Object>> results = new ArrayList<>(neo4jClient.query(cypherQuery)
+                .bindAll(params)
+                .fetch()
+                .all());
+            
+            log.info("查询结果数量: {}", results.size());
+            
+            // 手动构建实体和关系数据
+            List<Map<String, Object>> entities = Lists.newArrayList();
+            List<Map<String, Object>> relationships = Lists.newArrayList();
+            
+            for (Map<String, Object> result : results) {
+                org.neo4j.driver.types.Node node = (org.neo4j.driver.types.Node) result.get("n");
+                List<org.neo4j.driver.types.Relationship> rels = (List<org.neo4j.driver.types.Relationship>) result.get("collect(r)");
+                List<org.neo4j.driver.types.Node> relatedNodes = (List<org.neo4j.driver.types.Node>) result.get("collect(related)");
+                
+                if (node != null) {
+                    Map<String, Object> entity = Maps.newHashMap();
+                    entity.put("id", node.id());
+                    
+                    // 安全地获取name属性
+                    if (node.get("name") != null) {
+                        entity.put("name", node.get("name").asString());
+                    } else {
+                        entity.put("name", "未知实体");
+                    }
+                    
+                    // 安全地获取type属性
+                    if (node.get("type") != null) {
+                        entity.put("type", node.get("type").asString());
+                    } else {
+                        entity.put("type", "未知类型");
+                    }
+                    
+                    // 添加前端期望的属性
+                    // 根据type设置schemaId，用于颜色区分
+                    String entityType = entity.get("type").toString();
+                    int schemaId = 1; // 默认
+                    if ("人物".equals(entityType)) {
+                        schemaId = 9; // 对应schema中的id: 9
+                    } else if ("学校".equals(entityType)) {
+                        schemaId = 10; // 对应schema中的id: 10
+                    } else if ("公司".equals(entityType)) {
+                        schemaId = 11; // 对应schema中的id: 11
+                    } else if ("地点".equals(entityType)) {
+                        schemaId = 13; // 对应schema中的id: 13
+                    } else if ("技术".equals(entityType)) {
+                        schemaId = 14; // 对应schema中的id: 14
+                    }
+                    entity.put("schemaId", schemaId);
+                    entity.put("entityType", 2); // 默认entityType为2（非结构化）
+                    entity.put("releaseStatus", 1); // 已发布状态
+                    
+                    // 添加所有节点属性（在设置schemaId之后）
+                    entity.putAll(node.asMap());
+                    
+                    // 确保schemaId不被覆盖
+                    entity.put("schemaId", schemaId);
+                    
+                    entities.add(entity);
+                    
+                    log.info("处理实体: id={}, name={}, type={}, schemaId={}", node.id(), entity.get("name"), entity.get("type"), entity.get("schemaId"));
+                    
+                    // 处理关系
+                    if (rels != null && !rels.isEmpty()) {
+                        for (int i = 0; i < rels.size(); i++) {
+                            org.neo4j.driver.types.Relationship rel = rels.get(i);
+                            org.neo4j.driver.types.Node relatedNode = relatedNodes.get(i);
+                            
+                            if (rel != null && relatedNode != null) {
+                                Map<String, Object> relationship = Maps.newHashMap();
+                                relationship.put("id", rel.id());
+                                relationship.put("startId", String.valueOf(rel.startNodeId()));
+                                relationship.put("endId", String.valueOf(rel.endNodeId()));
+                                relationship.put("relationType", rel.type());
+                                relationship.put("startName", entity.get("name"));
+                                
+                                // 安全地获取目标节点的name
+                                if (relatedNode.get("name") != null) {
+                                    relationship.put("endName", relatedNode.get("name").asString());
+                                } else {
+                                    relationship.put("endName", "未知实体");
+                                }
+                                
+                                relationships.add(relationship);
+                                log.info("处理关系: {} -> {} -> {}", relationship.get("startName"), rel.type(), relationship.get("endName"));
+                            }
+                        }
+                    }
+                }
+            }
+            
+            Map<String, Object> hashMap = Maps.newHashMap();
+            hashMap.put("entities", entities);
+            hashMap.put("relationships", relationships);
+            
+            log.info("返回实体数量: {}", entities.size());
+            log.info("返回关系数量: {}", relationships.size());
+            
+            return hashMap;
+        } else {
+            Neo4jQueryWrapper<DynamicEntity> build = new Neo4jQueryWrapper<>(DynamicEntity.class);
+            Neo4jLabelEnum neo4jLabelEnum = get(appGraphVO.getEntityType());
+            
+            // 添加空值检查，避免 NullPointerException
+            if (neo4jLabelEnum == null) {
+                log.warn("无效的 entityType: {}, 使用默认的 DYNAMICENTITY 查询", appGraphVO.getEntityType());
+                neo4jLabelEnum = Neo4jLabelEnum.DYNAMICENTITY;
+            }
+            
+            if (Neo4jLabelEnum.DYNAMICENTITY.eq(neo4jLabelEnum.getCode())) {
+                build.eq("release_status", ReleaseStatus.PUBLISHED.getValue()); //发布状态
+            } else {
+                build.addLabels(neo4jLabelEnum.getLabel());
+                if(appGraphVO.getEntityId() != null){
+                    build.eq(neo4jLabelEnum.getEntityIdName(), appGraphVO.getEntityId());
+                }
+            }
+            
+            List<DynamicEntity> dynamicEntities = dynamicRepository.find(build);
+            JSONObject dynamicEntityJSONObject = Convert.toDynamicEntityJSONObject(dynamicEntities);
+            Map<String, Object> hashMap = Maps.newHashMap();
+            hashMap.put("entities", dynamicEntityJSONObject.get("entities"));
+            hashMap.put("relationships", dynamicEntityJSONObject.get("relationships"));
+            return hashMap;
         }
-        List<DynamicEntity> dynamicEntities = dynamicRepository.find(build);
-        JSONObject dynamicEntityJSONObject = Convert.toDynamicEntityJSONObject(dynamicEntities);
-        Map<String, Object> hashMap = Maps.newHashMap();
-        hashMap.put("entities", dynamicEntityJSONObject.get("entities"));
-        hashMap.put("relationships", dynamicEntityJSONObject.get("relationships"));
-        return hashMap;
     }
 
     @Override
     public PageResult<JSONObject> getGraphPage(AppGraphPageReqVO appGraphVO) {
         Neo4jQueryWrapper<DynamicEntity> build = new Neo4jQueryWrapper<>(DynamicEntity.class);
-        Neo4jLabelEnum neo4jLabelEnum = get(appGraphVO.getEntityType());
         
-        // 添加空值检查，避免 NullPointerException
-        if (neo4jLabelEnum == null) {
-            log.warn("无效的 entityType: {}, 使用默认的 DYNAMICENTITY 查询", appGraphVO.getEntityType());
-            build.eq("release_status", ReleaseStatus.PUBLISHED.getValue()); //发布状态
+        // 特殊处理：当entityType为0时，查询所有已发布的Entity标签实体（图谱探索模式）
+        if (appGraphVO.getEntityType() != null && appGraphVO.getEntityType() == 0) {
+            log.info("图谱探索模式：查询所有已发布的Entity标签实体");
+            // 添加Entity标签
+            build.addLabels("Entity");
+            // 只查询已发布的实体
+            build.eq("release_status", ReleaseStatus.PUBLISHED.getValue());
         } else {
-            build.addLabels(neo4jLabelEnum.getLabel());
-            if(appGraphVO.getEntityId() != null){
-                build.eq(neo4jLabelEnum.getEntityIdName(), appGraphVO.getEntityId());
+            Neo4jLabelEnum neo4jLabelEnum = get(appGraphVO.getEntityType());
+            
+            // 添加空值检查，避免 NullPointerException
+            if (neo4jLabelEnum == null) {
+                log.warn("无效的 entityType: {}, 使用默认的 DYNAMICENTITY 查询", appGraphVO.getEntityType());
+                build.eq("release_status", ReleaseStatus.PUBLISHED.getValue());
+            } else {
+                build.addLabels(neo4jLabelEnum.getLabel());
+                if(appGraphVO.getEntityId() != null){
+                    build.eq(neo4jLabelEnum.getEntityIdName(), appGraphVO.getEntityId());
+                }
             }
         }
+        
         if (StringUtils.isNotEmpty(appGraphVO.getName())) {
             build.like("name", appGraphVO.getName());
         }
