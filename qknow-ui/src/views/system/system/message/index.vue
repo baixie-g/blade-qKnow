@@ -222,7 +222,7 @@ const queryParams = ref({
     dateRange: [],
     pageNum: 1,
     pageSize: 10,
-    receiverId: userStore.userId,
+    receiverId: userStore.id,
 });
 const total = ref(0);
 
@@ -260,7 +260,7 @@ const endTime = ref(null)
 const getList = () => {
     const reqData = {
         category: queryParams.value.category,
-        receiverId: userStore.userId,
+        receiverId: userStore.id,
         pageNum: queryParams.value.pageNum,
         pageSize: queryParams.value.pageSize,
     }

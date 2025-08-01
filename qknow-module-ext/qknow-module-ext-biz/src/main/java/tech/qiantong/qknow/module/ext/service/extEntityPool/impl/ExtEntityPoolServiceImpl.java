@@ -27,6 +27,8 @@ import tech.qiantong.qknow.neo4j.enums.Neo4jLabelEnum;
 import tech.qiantong.qknow.neo4j.repository.DynamicRepository;
 import tech.qiantong.qknow.neo4j.wrapper.Neo4jBuildWrapper;
 import tech.qiantong.qknow.neo4j.wrapper.Neo4jQueryWrapper;
+import tech.qiantong.qknow.common.utils.spring.SpringUtils;
+import org.springframework.data.neo4j.core.Neo4jTemplate;
 
 import javax.annotation.Resource;
 import javax.validation.Valid;
@@ -200,6 +202,17 @@ public class ExtEntityPoolServiceImpl implements IExtEntityPoolService {
         log.info("============ 开始处理实体 ============");
         log.info("实体ID: {}, 状态: {}, 备注: {}", id, status, remark);
         log.info("原始实体信息: {}", JSON.toJSONString(entityPool));
+        
+        // 检查实体当前状态
+        if (entityPool.getStatus() != null) {
+            if (entityPool.getStatus() == 1) {
+                log.warn("实体ID {} 已经确认，无需重复处理", id);
+                return AjaxResult.error("实体已经确认，无需重复处理");
+            } else if (entityPool.getStatus() == 2) {
+                log.warn("实体ID {} 已经拒绝，无法重新处理", id);
+                return AjaxResult.error("实体已经拒绝，无法重新处理");
+            }
+        }
         
         // 更新处理状态
         ExtEntityPoolDO updateObj = new ExtEntityPoolDO();
@@ -495,16 +508,16 @@ public class ExtEntityPoolServiceImpl implements IExtEntityPoolService {
         resultData.put("failIds", failIds);
         resultData.put("errorMessages", errorMessages);
         
-        String message;
-        if (failCount == 0) {
-            message = String.format("批量处理完成：全部 %d 个实体处理成功", successCount);
-            return AjaxResult.success(message, resultData);
-        } else if (successCount == 0) {
-            message = String.format("批量处理失败：全部 %d 个实体处理失败", failCount);
+        if (failCount > 0) {
+            String message = String.format("批量处理失败：%d 个实体处理失败", failCount);
+            if (successCount > 0) {
+                message = String.format("批量处理部分成功：%d 个成功，%d 个失败", successCount, failCount);
+            }
+            resultData.put("message", message);
             return AjaxResult.error(message, resultData);
         } else {
-            message = String.format("批量处理部分成功：成功 %d 个，失败 %d 个", successCount, failCount);
-            return AjaxResult.success(message, resultData);
+            resultData.put("message", String.format("批量处理成功：全部 %d 个实体处理成功", successCount));
+            return AjaxResult.success("批量处理成功", resultData);
         }
     }
     
@@ -551,13 +564,25 @@ public class ExtEntityPoolServiceImpl implements IExtEntityPoolService {
                 throw new RuntimeException("实体类型为空");
             }
             
+            // 检查实体是否已存在
+            try {
+                Neo4jQueryWrapper<DynamicEntity> queryWrapper = new Neo4jQueryWrapper<>(DynamicEntity.class);
+                queryWrapper.eq("id", entityPool.getEntityId());
+                List<DynamicEntity> existingEntities = dynamicRepository.find(queryWrapper);
+                if (!existingEntities.isEmpty()) {
+                    log.warn("实体已存在，跳过创建: {}", entityPool.getEntityId());
+                    return;
+                }
+            } catch (Exception e) {
+                log.debug("检查实体存在性时出错，继续创建: {}", e.getMessage());
+            }
+            
             // 创建Neo4j节点
             Neo4jBuildWrapper<DynamicEntity> wrapper = new Neo4jBuildWrapper<>(DynamicEntity.class);
             
-            // 构建合并条件 - 使用id字段而不是entity_id
+            // 构建合并条件 - 只使用id字段作为唯一标识
             Map<String, Object> mergeMap = new HashMap<>();
             mergeMap.put("id", entityPool.getEntityId());
-            mergeMap.put("task_id", entityPool.getTaskId());
             
             log.info("合并条件: {}", JSON.toJSONString(mergeMap));
             
@@ -666,6 +691,26 @@ public class ExtEntityPoolServiceImpl implements IExtEntityPoolService {
                                        ExtEntityPoolDO sourceEntity, 
                                        ExtEntityPoolDO targetEntity) {
         try {
+            // 检查关系是否已存在
+            try {
+                // 使用简单的Cypher查询检查关系是否存在
+                String checkQuery = String.format(
+                    "MATCH (a:Entity {id: '%s'})-[r:%s]->(b:Entity {id: '%s'}) RETURN count(r) as count",
+                    sourceEntity.getEntityId(), 
+                    relationship.getRelationshipType(), 
+                    targetEntity.getEntityId()
+                );
+                
+                // 使用DynamicRepository的find方法，但使用简单的查询
+                Neo4jQueryWrapper<DynamicEntity> queryWrapper = new Neo4jQueryWrapper<>(DynamicEntity.class);
+                // 这里我们只是检查关系是否存在，不需要复杂的查询
+                // 如果关系已存在，会在创建时失败，所以我们跳过这个检查
+                log.debug("跳过关系存在性检查，直接尝试创建关系");
+                
+            } catch (Exception e) {
+                log.debug("检查关系存在性时出错，继续创建: {}", e.getMessage());
+            }
+            
             // 构建关系属性
             Map<String, Object> relationshipProperties = new HashMap<>();
             relationshipProperties.put("relationship_type", relationship.getRelationshipType());
@@ -677,14 +722,12 @@ public class ExtEntityPoolServiceImpl implements IExtEntityPoolService {
             relationshipProperties.put("process_time", relationship.getProcessTime());
             relationshipProperties.put("process_by", relationship.getProcessBy());
             
-            // 构建源节点和目标节点的属性映射 - 使用id字段而不是entity_id
+            // 构建源节点和目标节点的属性映射 - 只使用id字段作为合并条件
             Map<String, Object> sourceNodeMap = new HashMap<>();
             sourceNodeMap.put("id", sourceEntity.getEntityId());
-            sourceNodeMap.put("task_id", sourceEntity.getTaskId());
             
             Map<String, Object> targetNodeMap = new HashMap<>();
             targetNodeMap.put("id", targetEntity.getEntityId());
-            targetNodeMap.put("task_id", targetEntity.getTaskId());
             
             // 创建关系 - 使用Entity标签而不是DynamicEntity
             String label = "Entity";

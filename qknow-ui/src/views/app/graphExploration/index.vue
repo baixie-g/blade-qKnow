@@ -10,10 +10,19 @@
         <!-- 故障树 -->
         <el-button v-if="taskInfo.pageType == 3" type="primary" @click="handleAddEntity"> <i class="iconfont-mini icon-xinzeng mr5"></i>编辑实体 </el-button>
         <el-button v-if="taskInfo.pageType == 3" type="primary" @click="handleAddRelationship"> <i class="iconfont-mini icon-xinzeng mr5"></i>编辑三元组 </el-button>
+        <!-- 智能问答按钮 -->
+        <el-button 
+          type="success" 
+          @click="toggleChat"
+          :class="{ 'chat-active': chatVisible }"
+        >
+          <el-icon><ChatDotRound /></el-icon>
+          智能问答
+        </el-button>
       </div>
     </div>
     <el-container class="wrap-container">
-      <div :class="['gragh-wrap', { isfull: isfull }]">
+      <div :class="['gragh-wrap', { isfull: isfull, chatVisible: chatVisible }]">
         <div class="control-tree">
           <el-tree
             node-key="id"
@@ -58,7 +67,7 @@
             </div>
           </div>
         </div>
-        <div :class="['gragh-container', { detailShow: detailShow }]" id="gragh-container"></div>
+        <div :class="['gragh-container', { detailShow: detailShow, chatVisible: chatVisible }]" id="gragh-container"></div>
         <transition name="el-zoom-in-right">
           <div class="details-dialog" v-if="detailShow">
             <div class="details-title">
@@ -180,6 +189,14 @@
             </div>
           </div>
         </transition>
+        
+        <!-- 聊天面板 -->
+        <transition name="el-zoom-in-left">
+          <div class="chat-panel" v-if="chatVisible">
+            <ChatInterface @toggle-minimize="toggleChat" />
+          </div>
+        </transition>
+        
         <!-- 属性信息修改 -->
         <el-dialog class="attr-dialog" title="属性信息" v-model="attrVisible" width="500px" :append-to="$refs['app-container']" draggable destroy-on-close>
           <el-form ref="attrRef" :model="attrForm" label-width="80px">
@@ -227,6 +244,8 @@ import "@vue-office/excel/lib/index.css";
 import VueOfficePdf from "@vue-office/pdf";
 import AddEntity from "./addEntity.vue";
 import AddRelationship from "./addRelationship.vue";
+// 聊天组件
+import ChatInterface from "@/components/ChatInterface.vue";
 // 初始化画布
 import Vis from "vis-network/dist/vis-network.min.js";
 import "vis-network/dist/dist/vis-network.min.css";
@@ -241,6 +260,8 @@ import { getTableDataByDataId } from "@/api/ext/extDatasource/datasource";
 import { getGraph, updateReleaseStatus, deleteNodeAttributeById, deleteRelationshipById, deleteNode } from "@/api/app/graph";
 // 概念列表
 import { listSchema } from "@/api/ext/extSchema/schema";
+// 图标
+import { ChatDotRound } from "@element-plus/icons-vue";
 
 const getAssetsFile = (url) => {
   return new URL(`/src/assets/ke/images/${url}`, import.meta.url).href;
@@ -253,6 +274,15 @@ const router = useRouter();
 // 1结构化 2非结构化 3故障 0探索,
 const taskInfo = ref({ id: "", name: "图谱探索", pageType: "0" });
 let selectedIds = ref([]);
+
+// 聊天相关变量
+const chatVisible = ref(false);
+
+// 切换聊天面板显示/隐藏
+const toggleChat = () => {
+  chatVisible.value = !chatVisible.value;
+};
+
 watch(
   () => router.currentRoute.value.query.pageType,
   (val) => {
@@ -407,15 +437,31 @@ function getGraphData(params) {
     });
     edges.value = [];
     data.relationships.map((item) => {
-      if (data.entities.some((node) => node.id == item.startId) && data.entities.some((node) => node.id == item.endId)) {
+      console.log("处理关系:", item.startName, "->", item.relationType, "->", item.endName);
+      console.log("关系ID:", item.startId, "->", item.endId);
+      console.log("实体ID列表:", data.entities.map(e => e.id));
+      
+      // 确保ID类型匹配，都转换为字符串进行比较
+      const startIdStr = String(item.startId);
+      const endIdStr = String(item.endId);
+      
+      const startEntityExists = data.entities.some((node) => String(node.id) === startIdStr);
+      const endEntityExists = data.entities.some((node) => String(node.id) === endIdStr);
+      
+      console.log("源实体存在:", startEntityExists, "目标实体存在:", endEntityExists);
+      
+      if (startEntityExists && endEntityExists) {
         edges.value.push({
           ...item,
           id: item.id + "",
           name: item.relationType,
           label: item.relationType, //关系
-          from: item.startId + "", //头部实体
-          to: item.endId + "", //尾部实体
+          from: startIdStr, //头部实体
+          to: endIdStr, //尾部实体
         });
+        console.log("添加关系:", item.relationType, "从", startIdStr, "到", endIdStr);
+      } else {
+        console.warn("跳过关系:", item.relationType, "源实体或目标实体不存在");
       }
     });
     graphData.value.nodes = new Vis.DataSet(nodes.value);
@@ -1470,6 +1516,9 @@ function previewRefactoring(row) {
       &.detailShow {
         width: calc(100% - 400px);
       }
+      &.chatVisible {
+        width: calc(100% - 400px);
+      }
       :deep(.g6-toolbar) {
         .g6-toolbar-item {
           fill: #7dbffa;
@@ -1606,6 +1655,31 @@ function previewRefactoring(row) {
     }
     .el-dialog__body {
       height: 150px;
+    }
+  }
+  
+  // 聊天相关样式
+  .chat-active {
+    background-color: #67c23a !important;
+    border-color: #67c23a !important;
+    color: white !important;
+  }
+  
+  .chat-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 100%;
+    z-index: 1000;
+    background: white;
+    border-left: 1px solid #e4e7ed;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .gragh-wrap.chatVisible {
+    .gragh-container {
+      width: calc(100% - 400px);
     }
   }
 }

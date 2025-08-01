@@ -17,9 +17,11 @@
   import { ref,nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
   import WebSocketService from '@/api/system/system/message/websocketService'; // 导入服务
   import { getToken } from '../../../../../utils/auth'; // 引入token获取工具
+  import useUserStore from '@/store/system/user'; // 引入用户存储
 
-  // 获取当前用户的 token
-  const userId = ref('test11111111111');
+  // 获取当前用户的 token 和 userId
+  const userStore = useUserStore();
+  const userId = ref(userStore.id);
   const token = ref(getToken());
   let message = ref('');
 

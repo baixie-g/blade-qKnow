@@ -547,11 +547,17 @@ const noticeList = ref([])
 const sessionValue = ref(null)
 getMessageNum(); // 第一次主要获取消息
 
-const wsUri = import.meta.env.VITE_APP_WEBSOCKET_API + '/websocket/message/' + userStore.userId
+const wsUri = import.meta.env.VITE_APP_WEBSOCKET_API + '/websocket/message/' + userStore.id
 // 建立socket连接
 const ws = new WebSocket(wsUri);
 
 const initWebSocket = () => {
+  // 检查用户ID是否存在
+  if (!userStore.id) {
+    console.warn('用户ID不存在，无法建立WebSocket连接');
+    return;
+  }
+
   //查询通知公告
   listNotice().then(response => {
     console.log('---------- response.rows-------------', response)
@@ -569,7 +575,7 @@ const initWebSocket = () => {
 
   //查询未读消息通知
   listMessage({
-    receiverId: userStore.userId,
+    receiverId: userStore.id,
     hasRead: 0,
     pageNum: 1,
     pageSize: 1000,
@@ -660,7 +666,7 @@ function logout() {
     userStore.logOut().then(() => {
       if (authType === 'sso') {
         // 退出统一认证中心的登录状态
-        loginOut(userStore.userId).then(() => {
+        loginOut(userStore.id).then(() => {
           location.href = '/index';
         });
       } else {

@@ -76,8 +76,11 @@ public class AppGraphServiceImpl implements AppGraphService {
             
             // 使用Neo4jClient直接执行Cypher查询
             String cypherQuery = "MATCH (n:Entity) WHERE n.release_status = $releaseStatus " +
-                               "OPTIONAL MATCH (n)-[r]->(related) " +
-                               "RETURN n, collect(r), collect(related)";
+                               "WITH collect(n) as nodes " +
+                               "UNWIND nodes as n " +
+                               "OPTIONAL MATCH (n)-[r]->(m:Entity) " +
+                               "WHERE m.release_status = $releaseStatus " +
+                               "RETURN n, collect(r) as relationships, collect(m) as relatedNodes";
             
             Map<String, Object> params = Maps.newHashMap();
             params.put("releaseStatus", ReleaseStatus.PUBLISHED.getValue());
@@ -96,58 +99,67 @@ public class AppGraphServiceImpl implements AppGraphService {
             // 手动构建实体和关系数据
             List<Map<String, Object>> entities = Lists.newArrayList();
             List<Map<String, Object>> relationships = Lists.newArrayList();
+            Set<String> processedEntities = new HashSet<>();
+            Set<String> processedRelationships = new HashSet<>();
             
             for (Map<String, Object> result : results) {
                 org.neo4j.driver.types.Node node = (org.neo4j.driver.types.Node) result.get("n");
-                List<org.neo4j.driver.types.Relationship> rels = (List<org.neo4j.driver.types.Relationship>) result.get("collect(r)");
-                List<org.neo4j.driver.types.Node> relatedNodes = (List<org.neo4j.driver.types.Node>) result.get("collect(related)");
+                List<org.neo4j.driver.types.Relationship> rels = (List<org.neo4j.driver.types.Relationship>) result.get("relationships");
+                List<org.neo4j.driver.types.Node> relatedNodes = (List<org.neo4j.driver.types.Node>) result.get("relatedNodes");
                 
                 if (node != null) {
-                    Map<String, Object> entity = Maps.newHashMap();
-                    entity.put("id", node.id());
+                    String nodeId = String.valueOf(node.id());
                     
-                    // 安全地获取name属性
-                    if (node.get("name") != null) {
-                        entity.put("name", node.get("name").asString());
-                    } else {
-                        entity.put("name", "未知实体");
+                    // 避免重复处理同一个实体
+                    if (!processedEntities.contains(nodeId)) {
+                        Map<String, Object> entity = Maps.newHashMap();
+                        entity.put("id", String.valueOf(node.id())); // 确保ID是字符串格式
+                        
+                        // 安全地获取name属性
+                        if (node.get("name") != null) {
+                            entity.put("name", node.get("name").asString());
+                        } else {
+                            entity.put("name", "未知实体");
+                        }
+                        
+                        // 安全地获取type属性
+                        if (node.get("type") != null) {
+                            entity.put("type", node.get("type").asString());
+                        } else {
+                            entity.put("type", "未知类型");
+                        }
+                        
+                        // 添加前端期望的属性
+                        // 根据type设置schemaId，用于颜色区分
+                        String entityType = entity.get("type").toString();
+                        int schemaId = 1; // 默认
+                        if ("人物".equals(entityType) || "person".equals(entityType)) {
+                            schemaId = 9; // 对应schema中的id: 9
+                        } else if ("学校".equals(entityType) || "organization".equals(entityType)) {
+                            schemaId = 10; // 对应schema中的id: 10
+                        } else if ("公司".equals(entityType) || "company".equals(entityType)) {
+                            schemaId = 11; // 对应schema中的id: 11
+                        } else if ("地点".equals(entityType) || "location".equals(entityType)) {
+                            schemaId = 13; // 对应schema中的id: 13
+                        } else if ("技术".equals(entityType) || "technology".equals(entityType)) {
+                            schemaId = 14; // 对应schema中的id: 14
+                        }
+                        entity.put("schemaId", schemaId);
+                        entity.put("entityType", 2); // 默认entityType为2（非结构化）
+                        entity.put("releaseStatus", 1); // 已发布状态
+                        
+                        // 添加所有节点属性（在设置schemaId之后）
+                        entity.putAll(node.asMap());
+                        
+                        // 确保schemaId和id不被覆盖
+                        entity.put("schemaId", schemaId);
+                        entity.put("id", String.valueOf(node.id())); // 确保ID是字符串格式
+                        
+                        entities.add(entity);
+                        processedEntities.add(nodeId);
+                        
+                        log.info("处理实体: id={}, name={}, type={}, schemaId={}", node.id(), entity.get("name"), entity.get("type"), entity.get("schemaId"));
                     }
-                    
-                    // 安全地获取type属性
-                    if (node.get("type") != null) {
-                        entity.put("type", node.get("type").asString());
-                    } else {
-                        entity.put("type", "未知类型");
-                    }
-                    
-                    // 添加前端期望的属性
-                    // 根据type设置schemaId，用于颜色区分
-                    String entityType = entity.get("type").toString();
-                    int schemaId = 1; // 默认
-                    if ("人物".equals(entityType)) {
-                        schemaId = 9; // 对应schema中的id: 9
-                    } else if ("学校".equals(entityType)) {
-                        schemaId = 10; // 对应schema中的id: 10
-                    } else if ("公司".equals(entityType)) {
-                        schemaId = 11; // 对应schema中的id: 11
-                    } else if ("地点".equals(entityType)) {
-                        schemaId = 13; // 对应schema中的id: 13
-                    } else if ("技术".equals(entityType)) {
-                        schemaId = 14; // 对应schema中的id: 14
-                    }
-                    entity.put("schemaId", schemaId);
-                    entity.put("entityType", 2); // 默认entityType为2（非结构化）
-                    entity.put("releaseStatus", 1); // 已发布状态
-                    
-                    // 添加所有节点属性（在设置schemaId之后）
-                    entity.putAll(node.asMap());
-                    
-                    // 确保schemaId不被覆盖
-                    entity.put("schemaId", schemaId);
-                    
-                    entities.add(entity);
-                    
-                    log.info("处理实体: id={}, name={}, type={}, schemaId={}", node.id(), entity.get("name"), entity.get("type"), entity.get("schemaId"));
                     
                     // 处理关系
                     if (rels != null && !rels.isEmpty()) {
@@ -156,22 +168,34 @@ public class AppGraphServiceImpl implements AppGraphService {
                             org.neo4j.driver.types.Node relatedNode = relatedNodes.get(i);
                             
                             if (rel != null && relatedNode != null) {
-                                Map<String, Object> relationship = Maps.newHashMap();
-                                relationship.put("id", rel.id());
-                                relationship.put("startId", String.valueOf(rel.startNodeId()));
-                                relationship.put("endId", String.valueOf(rel.endNodeId()));
-                                relationship.put("relationType", rel.type());
-                                relationship.put("startName", entity.get("name"));
+                                String relId = String.valueOf(rel.id());
                                 
-                                // 安全地获取目标节点的name
-                                if (relatedNode.get("name") != null) {
-                                    relationship.put("endName", relatedNode.get("name").asString());
-                                } else {
-                                    relationship.put("endName", "未知实体");
+                                // 避免重复处理同一个关系
+                                if (!processedRelationships.contains(relId)) {
+                                    Map<String, Object> relationship = Maps.newHashMap();
+                                    relationship.put("id", String.valueOf(rel.id())); // 确保ID是字符串格式
+                                    relationship.put("startId", String.valueOf(rel.startNodeId())); // 确保ID是字符串格式
+                                    relationship.put("endId", String.valueOf(rel.endNodeId())); // 确保ID是字符串格式
+                                    relationship.put("relationType", rel.type());
+                                    
+                                    // 获取源节点名称
+                                    if (node.get("name") != null) {
+                                        relationship.put("startName", node.get("name").asString());
+                                    } else {
+                                        relationship.put("startName", "未知实体");
+                                    }
+                                    
+                                    // 安全地获取目标节点的name
+                                    if (relatedNode.get("name") != null) {
+                                        relationship.put("endName", relatedNode.get("name").asString());
+                                    } else {
+                                        relationship.put("endName", "未知实体");
+                                    }
+                                    
+                                    relationships.add(relationship);
+                                    processedRelationships.add(relId);
+                                    log.info("处理关系: {} -> {} -> {}", relationship.get("startName"), rel.type(), relationship.get("endName"));
                                 }
-                                
-                                relationships.add(relationship);
-                                log.info("处理关系: {} -> {} -> {}", relationship.get("startName"), rel.type(), relationship.get("endName"));
                             }
                         }
                     }

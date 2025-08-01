@@ -11,6 +11,12 @@ class WebSocketService {
             return;  // 如果连接已经初始化并且没有关闭，就不需要再初始化
         }
 
+        // 检查用户ID是否存在
+        if (!this.userId) {
+            console.warn('用户ID不存在，无法建立WebSocket连接');
+            return;
+        }
+
         // 创建 WebSocket 连接
         const wsUri = import.meta.env.VITE_APP_WEBSOCKET_API + `/websocket/message/${this.userId}`
         // 建立socket连接

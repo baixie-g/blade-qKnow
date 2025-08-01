@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模型选择修复测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .result {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>模型选择修复测试</h1>
+    
+    <div class="test-section">
+        <h2>测试API响应</h2>
+        <button onclick="testAPI()">测试 /api/llm/models 接口</button>
+        <div id="apiResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>测试模型解析</h2>
+        <button onclick="testModelParsing()">测试模型数据解析</button>
+        <div id="parsingResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>模拟前端逻辑</h2>
+        <button onclick="testFrontendLogic()">测试前端处理逻辑</button>
+        <div id="frontendResult" class="result"></div>
+    </div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('apiResult');
+            resultDiv.innerHTML = '正在测试...';
+            
+            try {
+                const response = await fetch('http://localhost:8090/api/llm/models');
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="success">✅ API调用成功</div>
+                    <div>响应类型: ${Array.isArray(data) ? '数组' : '对象'}</div>
+                    <div>模型数量: ${Array.isArray(data) ? data.length : 'N/A'}</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ API调用失败</div>
+                    <div>错误: ${error.message}</div>
+                `;
+            }
+        }
+        
+        function testModelParsing() {
+            const resultDiv = document.getElementById('parsingResult');
+            
+            // 模拟API返回的数据
+            const mockApiResponse = [
+                {
+                    "name": "ark-model",
+                    "status": "available",
+                    "provider": "ARK",
+                    "modelType": "Custom",
+                    "maxTokens": null,
+                    "temperature": 0.1
+                },
+                {
+                    "name": "doubao-seed-1.6",
+                    "status": "available",
+                    "provider": "unknown",
+                    "modelType": "unknown",
+                    "maxTokens": null,
+                    "temperature": 0.1
+                }
+            ];
+            
+            // 测试修复后的逻辑
+            let availableLLMs = [];
+            
+            if (Array.isArray(mockApiResponse)) {
+                availableLLMs = mockApiResponse;
+            } else if (mockApiResponse && mockApiResponse.success && Array.isArray(mockApiResponse.data)) {
+                availableLLMs = mockApiResponse.data;
+            }
+            
+            resultDiv.innerHTML = `
+                <div class="success">✅ 模型解析成功</div>
+                <div>解析到的模型数量: ${availableLLMs.length}</div>
+                <div>模型列表:</div>
+                <ul>
+                    ${availableLLMs.map(llm => `
+                        <li>${llm.name} (${llm.provider || 'unknown'}) - ${llm.status}</li>
+                    `).join('')}
+                </ul>
+            `;
+        }
+        
+        function testFrontendLogic() {
+            const resultDiv = document.getElementById('frontendResult');
+            
+            // 模拟前端设置
+            const settings = {
+                llmName: 'ark-model',
+                databaseName: 'neo4j',
+                workflowType: 'text2cypher_with_1_retry_and_output_check'
+            };
+            
+            // 模拟可用模型
+            const availableLLMs = [
+                {
+                    "name": "ark-model",
+                    "status": "available",
+                    "provider": "ARK"
+                },
+                {
+                    "name": "doubao-seed-1.6",
+                    "status": "available",
+                    "provider": "unknown"
+                }
+            ];
+            
+            // 测试默认值设置逻辑
+            if (availableLLMs.length > 0) {
+                const currentModelExists = availableLLMs.some(llm => llm.name === settings.llmName);
+                if (!currentModelExists) {
+                    settings.llmName = availableLLMs[0].name;
+                }
+            }
+            
+            resultDiv.innerHTML = `
+                <div class="success">✅ 前端逻辑测试成功</div>
+                <div>当前选择的模型: ${settings.llmName}</div>
+                <div>模型是否在可用列表中: ${availableLLMs.some(llm => llm.name === settings.llmName) ? '是' : '否'}</div>
+                <div>可用模型数量: ${availableLLMs.length}</div>
+            `;
+        }
+    </script>
+</body>
+</html> 

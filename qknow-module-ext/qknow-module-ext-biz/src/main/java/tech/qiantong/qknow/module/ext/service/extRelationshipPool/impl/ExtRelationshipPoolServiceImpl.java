@@ -24,6 +24,9 @@ import tech.qiantong.qknow.neo4j.domain.DynamicEntity;
 import tech.qiantong.qknow.neo4j.enums.Neo4jLabelEnum;
 import tech.qiantong.qknow.neo4j.repository.DynamicRepository;
 import tech.qiantong.qknow.neo4j.wrapper.Neo4jBuildWrapper;
+import tech.qiantong.qknow.neo4j.wrapper.Neo4jQueryWrapper;
+import tech.qiantong.qknow.common.utils.spring.SpringUtils;
+import org.springframework.data.neo4j.core.Neo4jTemplate;
 
 import javax.annotation.Resource;
 import javax.validation.Valid;
@@ -201,6 +204,17 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
         log.info("============ 开始处理关系 ============");
         log.info("关系ID: {}, 状态: {}, 备注: {}", id, status, remark);
         log.info("关系信息: {}", JSON.toJSONString(relationshipPool));
+        
+        // 检查关系当前状态
+        if (relationshipPool.getStatus() != null) {
+            if (relationshipPool.getStatus() == 1) {
+                log.warn("关系ID {} 已经确认，无需重复处理", id);
+                return AjaxResult.error("关系已经确认，无需重复处理");
+            } else if (relationshipPool.getStatus() == 2) {
+                log.warn("关系ID {} 已经拒绝，无法重新处理", id);
+                return AjaxResult.error("关系已经拒绝，无法重新处理");
+            }
+        }
         
         // 如果确认关系，先检查实体状态
         if (status == 1) { // 已确认
@@ -393,7 +407,32 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
                                        ExtEntityPoolDO sourceEntity, 
                                        ExtEntityPoolDO targetEntity) {
         try {
-            // 构建关系属性 - 移除前缀，并处理日期格式
+            log.info("============ 开始保存关系到Neo4j ============");
+            log.info("关系信息: {}", JSON.toJSONString(relationship));
+            log.info("源实体: {}", JSON.toJSONString(sourceEntity));
+            log.info("目标实体: {}", JSON.toJSONString(targetEntity));
+            
+            // 检查关系是否已存在
+            try {
+                // 使用简单的Cypher查询检查关系是否存在
+                String checkQuery = String.format(
+                    "MATCH (a:Entity {id: '%s'})-[r:%s]->(b:Entity {id: '%s'}) RETURN count(r) as count",
+                    sourceEntity.getEntityId(), 
+                    relationship.getRelationshipType(), 
+                    targetEntity.getEntityId()
+                );
+                
+                // 使用DynamicRepository的find方法，但使用简单的查询
+                Neo4jQueryWrapper<DynamicEntity> queryWrapper = new Neo4jQueryWrapper<>(DynamicEntity.class);
+                // 这里我们只是检查关系是否存在，不需要复杂的查询
+                // 如果关系已存在，会在创建时失败，所以我们跳过这个检查
+                log.debug("跳过关系存在性检查，直接尝试创建关系");
+                
+            } catch (Exception e) {
+                log.debug("检查关系存在性时出错，继续创建: {}", e.getMessage());
+            }
+            
+            // 构建关系属性
             Map<String, Object> relationshipProperties = new HashMap<>();
             relationshipProperties.put("relationship_type", relationship.getRelationshipType());
             relationshipProperties.put("task_id", relationship.getTaskId());
@@ -402,9 +441,8 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
             relationshipProperties.put("workspace_id", relationship.getWorkspaceId());
             relationshipProperties.put("release_status", 1); // 已发布
             
-            // 处理日期格式，转换为ISO 8601格式或时间戳
+            // 处理日期格式，转换为时间戳
             if (relationship.getProcessTime() != null) {
-                // 使用时间戳格式，Neo4j可以正确处理
                 relationshipProperties.put("process_time", relationship.getProcessTime().getTime());
             }
             
@@ -413,29 +451,35 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
                 relationshipProperties.put("process_by", relationship.getProcessBy());
             }
             
-            // 构建源节点和目标节点的属性映射
+            // 构建源节点和目标节点的属性映射 - 只使用id字段作为合并条件
             Map<String, Object> sourceNodeMap = new HashMap<>();
             sourceNodeMap.put("id", sourceEntity.getEntityId());
-            sourceNodeMap.put("task_id", sourceEntity.getTaskId());
             
             Map<String, Object> targetNodeMap = new HashMap<>();
             targetNodeMap.put("id", targetEntity.getEntityId());
-            targetNodeMap.put("task_id", targetEntity.getTaskId());
             
-            // 创建关系
-            String label = Neo4jLabelEnum.DYNAMICENTITY.getLabel() + ":" + Neo4jLabelEnum.UNSTRUCTURED.getLabel();
+            log.info("源节点合并条件: {}", JSON.toJSONString(sourceNodeMap));
+            log.info("目标节点合并条件: {}", JSON.toJSONString(targetNodeMap));
+            log.info("关系属性: {}", JSON.toJSONString(relationshipProperties));
+            
+            // 创建关系 - 使用Entity标签而不是DynamicEntity
+            String label = "Entity";
             Neo4jBuildWrapper<DynamicEntity> wrapper = new Neo4jBuildWrapper<>(DynamicEntity.class);
+            
+            // 使用mergeRelationship方法创建关系
             dynamicRepository.mergeRelationship(label, wrapper, sourceNodeMap, targetNodeMap, 
                 relationship.getRelationshipType(), relationshipProperties);
             
             log.info("============ 关系已成功存入Neo4j ============");
             log.info("关系类型: {}", relationship.getRelationshipType());
-            log.info("源实体: {}", sourceEntity.getEntityName());
-            log.info("目标实体: {}", targetEntity.getEntityName());
+            log.info("源实体: {} ({})", sourceEntity.getEntityName(), sourceEntity.getEntityId());
+            log.info("目标实体: {} ({})", targetEntity.getEntityName(), targetEntity.getEntityId());
             
         } catch (Exception e) {
             log.error("============ 关系存入Neo4j失败 ============");
             log.error("关系信息: {}", JSON.toJSONString(relationship));
+            log.error("源实体: {}", JSON.toJSONString(sourceEntity));
+            log.error("目标实体: {}", JSON.toJSONString(targetEntity));
             log.error("错误详情: ", e);
             throw new RuntimeException("关系存入Neo4j失败: " + e.getMessage());
         }

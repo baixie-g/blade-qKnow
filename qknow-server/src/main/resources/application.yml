@@ -221,3 +221,16 @@ knife4j:
     enable: true
     username: qknow
     password: qknow12313
+
+# Text2Cypher API 配置
+text2cypher:
+  api:
+    base-url: http://localhost:8003/api/v1
+    timeout: 60000
+    retry:
+      max-attempts: 3
+      backoff-delay: 1000
+  llm:
+    default-model: ark-model
+    default-database: neo4j
+    default-workflow: text2cypher_with_1_retry_and_output_check
