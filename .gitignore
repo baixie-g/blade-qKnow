@@ -60,6 +60,9 @@ storybook-static/
 # 忽略 upload 目录下的所有内容
 #/upload/
 
+# 忽略根目录下 test 文件夹及其所有内容
+/test/
+
 # Redis
 *.rdb
 *.aof
@@ -137,4 +140,3 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
