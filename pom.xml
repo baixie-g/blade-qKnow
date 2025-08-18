@@ -200,6 +200,7 @@
         <module>qknow-module-ext</module>
         <module>qknow-module-kmc</module>
         <module>qknow-module-system</module>
+        <module>qknow-module-llm</module>
         <module>qknow-server</module>
     </modules>
     <build>

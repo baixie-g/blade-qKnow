@@ -1,4 +1,4 @@
-package tech.qiantong.qknow.server.service.impl;
+package tech.qiantong.qknow.llm.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -6,10 +6,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import tech.qiantong.qknow.server.dto.LLMModel;
-import tech.qiantong.qknow.server.dto.LLMRequest;
-import tech.qiantong.qknow.server.dto.LLMResponse;
-import tech.qiantong.qknow.server.service.LLMService;
+import tech.qiantong.qknow.llm.dto.LLMModel;
+import tech.qiantong.qknow.llm.dto.LLMResponse;
+import tech.qiantong.qknow.llm.service.LLMService;
 
 import java.util.Collections;
 import java.util.HashMap;

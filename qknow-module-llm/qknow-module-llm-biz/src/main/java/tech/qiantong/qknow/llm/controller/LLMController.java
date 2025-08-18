@@ -1,13 +1,13 @@
-package tech.qiantong.qknow.server.controller;
+package tech.qiantong.qknow.llm.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import tech.qiantong.qknow.common.annotation.Anonymous;
-import tech.qiantong.qknow.server.dto.LLMModel;
-import tech.qiantong.qknow.server.dto.LLMResponse;
-import tech.qiantong.qknow.server.service.LLMService;
+import tech.qiantong.qknow.llm.dto.LLMModel;
+import tech.qiantong.qknow.llm.dto.LLMResponse;
+import tech.qiantong.qknow.llm.service.LLMService;
 
 import java.util.*;
 

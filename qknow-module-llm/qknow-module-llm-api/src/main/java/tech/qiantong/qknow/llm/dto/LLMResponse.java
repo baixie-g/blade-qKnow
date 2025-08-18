@@ -1,4 +1,4 @@
-package tech.qiantong.qknow.server.dto;
+package tech.qiantong.qknow.llm.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

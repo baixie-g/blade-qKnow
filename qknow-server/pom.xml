@@ -75,6 +75,13 @@
             <version>1.4.3</version>
         </dependency>
 
+        <!-- LLM 模块依赖 -->
+        <dependency>
+            <groupId>tech.qiantong</groupId>
+            <artifactId>qknow-module-llm-biz</artifactId>
+            <version>3.8.8</version>
+        </dependency>
+
     </dependencies>
 
     <build>

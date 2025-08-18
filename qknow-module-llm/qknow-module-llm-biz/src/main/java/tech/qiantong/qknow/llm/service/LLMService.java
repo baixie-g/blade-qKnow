@@ -1,7 +1,7 @@
-package tech.qiantong.qknow.server.service;
+package tech.qiantong.qknow.llm.service;
 
-import tech.qiantong.qknow.server.dto.LLMModel;
-import tech.qiantong.qknow.server.dto.LLMResponse;
+import tech.qiantong.qknow.llm.dto.LLMModel;
+import tech.qiantong.qknow.llm.dto.LLMResponse;
 
 import java.util.List;
 import java.util.Map;
