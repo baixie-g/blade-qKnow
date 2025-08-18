@@ -14,8 +14,9 @@ export let isRelogin = { show: false };
 axios.defaults.headers['Content-Type'] = 'application/json;charset=utf-8'
 // 创建axios实例
 const service = axios.create({
-  // axios中请求配置有baseURL选项，表示请求URL公共部分
-  baseURL: import.meta.env.VITE_APP_BASE_API,
+  // axios 中请求配置有 baseURL 选项，表示请求URL公共部分
+  // 默认使用 "/dev-api" 以便通过 Vite 代理转发到后端，避免浏览器直连后端触发 CORS
+  baseURL: import.meta.env.VITE_APP_BASE_API || '/dev-api',
   // 超时
   timeout: 10000
 })

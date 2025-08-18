@@ -99,6 +99,8 @@ public class SecurityConfig
         return httpSecurity
             // CSRF禁用，因为不使用session
             .csrf(csrf -> csrf.disable())
+            // 开启 CORS 支持，配合全局 CorsFilter
+            .cors(cors -> {})
             // 禁用HTTP响应标头
             .headers((headersCustomizer) -> {
                 headersCustomizer.cacheControl(cache -> cache.disable()).frameOptions(options -> options.sameOrigin());
@@ -109,6 +111,8 @@ public class SecurityConfig
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             // 注解标记允许匿名访问的url
             .authorizeHttpRequests((requests) -> {
+                // 预检请求直接放行，避免被拦截后重定向或返回401导致浏览器跨域失败
+                requests.antMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                 permitAllUrl.getUrls().forEach(url -> requests.antMatchers(url).permitAll());
                 // 对于登录login 注册register 验证码captchaImage 允许匿名访问
                 requests.antMatchers("/login", "/register", "/captchaImage", "/flyflow/**").permitAll()

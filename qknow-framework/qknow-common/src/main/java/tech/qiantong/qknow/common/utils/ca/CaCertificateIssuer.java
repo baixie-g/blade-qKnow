@@ -2,6 +2,14 @@ package tech.qiantong.qknow.common.utils.ca;
 
 import cn.hutool.core.lang.Validator;
 import cn.hutool.core.util.ReUtil;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.*;
+import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.cert.X509v3CertificateBuilder;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.bouncycastle.util.io.pem.PemWriter;
@@ -9,7 +17,6 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.multipart.MultipartFile;
-import sun.security.x509.*;
 
 import javax.security.auth.x500.X500Principal;
 import javax.servlet.http.HttpServletRequest;
@@ -65,42 +72,43 @@ public class CaCertificateIssuer {
         X500Name userX500Name = new X500Name(userDnName.getName());
 
         // 创建 X.509 用户证书信息对象
-        X509CertInfo userCertInfo = new X509CertInfo();
-        userCertInfo.set(X509CertInfo.VERSION, new CertificateVersion(CertificateVersion.V3));
-        userCertInfo.set(X509CertInfo.SERIAL_NUMBER, new CertificateSerialNumber(BigInteger.valueOf(System.currentTimeMillis())));
-        userCertInfo.set(X509CertInfo.SUBJECT, userX500Name);
-        userCertInfo.set(X509CertInfo.ISSUER, rootX500Name);
-        userCertInfo.set(X509CertInfo.VALIDITY, new CertificateValidity(new Date(), new Date(System.currentTimeMillis() + validity * 365L * 24L * 60L * 60L * 1000L)));
-        userCertInfo.set(X509CertInfo.KEY, new CertificateX509Key(userPublicKey));
-        userCertInfo.set(X509CertInfo.ALGORITHM_ID, new CertificateAlgorithmId(AlgorithmId.get("SHA256withRSA")));
+        X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
+            rootX500Name,
+            BigInteger.valueOf(System.currentTimeMillis()),
+            new Date(),
+            new Date(System.currentTimeMillis() + validity * 365L * 24L * 60L * 60L * 1000L),
+            userX500Name,
+            userPublicKey
+        );
 
         // 添加主题扩展字段 (SAN)，用于浏览器 https 验证
-        String dnsName = ReUtil.get("CN=([^,]+)", userX500Name.getName(), 1);
+        String dnsName = ReUtil.get("CN=([^,]+)", userX500Name.toString(), 1);
         // 判断是否是IP地址或域名
         boolean isIpAddress = Validator.isIpv4(dnsName);
         // 判断是否是域名
         boolean isDomain = ReUtil.isMatch("^(\\*\\.)?([\\w-]+\\.)+[a-zA-Z]{2,}$", dnsName);
 
-        CertificateExtensions extensions = new CertificateExtensions();
-        GeneralNames san = new GeneralNames();
-
-        if (isIpAddress) {
-            // 如果是IP地址，使用IPAddress类型添加到SAN
-            san.add(new GeneralName(new IPAddressName(dnsName)));
-        } else if (isDomain) {
-            // 如果是域名，使用DNSName类型添加到SAN
-            san.add(new GeneralName(new DNSName(dnsName)));
-        }
-
         if (isIpAddress || isDomain) {
-            extensions.set(SubjectAlternativeNameExtension.NAME, new SubjectAlternativeNameExtension(san));
-            // 将扩展添加到证书信息中
-            userCertInfo.set(X509CertInfo.EXTENSIONS, extensions);
+            GeneralNames san;
+            if (isIpAddress) {
+                // 如果是IP地址，使用IPAddress类型添加到SAN
+                san = new GeneralNames(new GeneralName(GeneralName.iPAddress, dnsName));
+            } else {
+                // 如果是域名，使用DNSName类型添加到SAN
+                san = new GeneralNames(new GeneralName(GeneralName.dNSName, dnsName));
+            }
+            
+            // 添加主题备用名称扩展
+            certBuilder.addExtension(Extension.subjectAlternativeName, false, san);
         }
 
         // 使用根证书的私钥签署用户证书
-        X509CertImpl userCertificate = new X509CertImpl(userCertInfo);
-        userCertificate.sign(rootPrivateKey, "SHA256withRSA");
+        ContentSigner contentSigner = new JcaContentSignerBuilder("SHA256withRSA")
+            .build(rootPrivateKey);
+        
+        X509CertificateHolder certHolder = certBuilder.build(contentSigner);
+        X509Certificate userCertificate = new JcaX509CertificateConverter()
+            .getCertificate(certHolder);
 
         // 将用户证书转换为 MultipartFile
         fileList.add(convertCertificateToMultipartFile(userCertificate, dnsName + "_certificate.cer"));
@@ -131,7 +139,7 @@ public class CaCertificateIssuer {
      * @return MultipartFile 形式的证书
      * @throws Exception 如果转换过程中发生错误
      */
-    private static MultipartFile convertCertificateToMultipartFile(X509CertImpl certificate, String fileName) throws Exception {
+    private static MultipartFile convertCertificateToMultipartFile(X509Certificate certificate, String fileName) throws Exception {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.US_ASCII))) {
             writer.write("-----BEGIN CERTIFICATE-----\n");

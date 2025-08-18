@@ -1,9 +1,18 @@
 package tech.qiantong.qknow.common.utils.ca;
 
 import cn.hutool.crypto.SecureUtil;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.cert.X509v3CertificateBuilder;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.operator.ContentSigner;
+import java.security.cert.X509Certificate;
+
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
-import sun.security.x509.*;
 
 import javax.security.auth.x500.X500Principal;
 import java.io.*;
@@ -53,18 +62,26 @@ public class CaGenerateRootCertificate {
             BigInteger certSerialNumber = new BigInteger(Long.toString(currentTime));
 
             // 创建 X.509 证书对象
-            X509CertInfo certInfo = new X509CertInfo();
-            certInfo.set(X509CertInfo.VERSION, new CertificateVersion(CertificateVersion.V3));
-            certInfo.set(X509CertInfo.SERIAL_NUMBER, new CertificateSerialNumber(certSerialNumber));
-            certInfo.set(X509CertInfo.SUBJECT, new X500Name(dnName.getName()));
-            certInfo.set(X509CertInfo.ISSUER, new X500Name(dnName.getName()));
-            certInfo.set(X509CertInfo.VALIDITY, new CertificateValidity(startDate, endDate));
-            certInfo.set(X509CertInfo.KEY, new CertificateX509Key(publicKey));
-            certInfo.set(X509CertInfo.ALGORITHM_ID, new CertificateAlgorithmId(AlgorithmId.get("SHA256withRSA")));
+            X500Name subjectName = new X500Name(dnName.getName());
+            X500Name issuerName = new X500Name(dnName.getName());
+            
+            // 创建证书构建器
+            X509v3CertificateBuilder certBuilder = new X509v3CertificateBuilder(
+                issuerName,
+                certSerialNumber,
+                startDate,
+                endDate,
+                subjectName,
+                SubjectPublicKeyInfo.getInstance(publicKey.getEncoded())
+            );
 
             // 创建证书
-            X509CertImpl certificate = new X509CertImpl(certInfo);
-            certificate.sign(privateKey, "SHA256withRSA");
+            ContentSigner contentSigner = new JcaContentSignerBuilder("SHA256withRSA")
+                .build(privateKey);
+            
+            X509CertificateHolder certHolder = certBuilder.build(contentSigner);
+            X509Certificate certificate = new JcaX509CertificateConverter()
+                .getCertificate(certHolder);
 
             // 保存证书为 .cer 文件
             String certFilePath = "rootCA.cer";

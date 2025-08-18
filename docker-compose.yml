@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  qknow-server:
+    build: ./qknow-server
+    container_name: qknow-server
+    ports:
+      - "8090:8090"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - NACOS_SERVER_ADDR=127.0.0.1:8848
+      - NACOS_NAMESPACE=blade-dev
+      - NACOS_FILE_EXTENSION=yaml
+    volumes:
+      - ./upload:/app/upload
+      - ./logs:/app/logs
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - qknow-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: qknow-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: qknow_dev
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql/mysql:/docker-entrypoint-initdb.d
+    networks:
+      - qknow-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: qknow-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - qknow-network
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  qknow-network:
+    driver: bridge

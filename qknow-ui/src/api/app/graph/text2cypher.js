@@ -1,7 +1,8 @@
 import axios from 'axios'
 
-// LLM API 基础配置 - 指向我们的Spring Boot后端服务
-const LLM_API_BASE_URL = 'http://localhost:8090/api';
+// LLM API 基础配置：统一走 Vite 代理，避免直连后端触发 CORS
+// 约定：VITE_APP_BASE_API 在开发环境为 "/dev-api"
+const LLM_API_BASE_URL = `${import.meta.env.VITE_APP_BASE_API || ''}/api`;
 
 // 创建专用的axios实例用于LLM API
 const llmService = axios.create({
