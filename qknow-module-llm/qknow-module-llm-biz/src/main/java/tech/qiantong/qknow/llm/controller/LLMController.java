@@ -41,6 +41,7 @@ public class LLMController {
         // 获取用户选择的设置参数
         String llmName = (String) request.get("llm_name");
         String databaseName = (String) request.get("database_name");
+        String databaseId = request.get("database_id") != null ? String.valueOf(request.get("database_id")) : null;
         String workflowType = (String) request.get("workflow_type");
         Integer timeout = (Integer) request.get("timeout");
         
@@ -56,7 +57,7 @@ public class LLMController {
         log.info("收到LLM查询请求: question={}, llm={}, database={}, workflow={}, timeout={}", 
                 question, llmName, databaseName, workflowType, timeout);
         
-        LLMResponse response = llmService.executeQuery(question, context, llmName, databaseName, workflowType, timeout);
+        LLMResponse response = llmService.executeQuery(question, context, llmName, databaseId, databaseName, workflowType, timeout);
         return ResponseEntity.ok(response);
     }
     
@@ -123,34 +124,17 @@ public class LLMController {
     @GetMapping("/databases")
     public ResponseEntity<Map<String, Object>> getDatabases() {
         Map<String, Object> result = new HashMap<>();
-        
         try {
-            // 这里可以添加获取数据库列表的逻辑
+            List<Map<String, Object>> databases = llmService.getAvailableDatabases();
             result.put("success", true);
             result.put("message", "获取数据库列表成功");
-            
-            // 创建数据库信息
-            Map<String, Object> databaseInfo = new HashMap<>();
-            databaseInfo.put("name", "neo4j");
-            databaseInfo.put("status", "connected");
-            databaseInfo.put("uri", "bolt://localhost:7687");
-            databaseInfo.put("schema_count", 8);
-            
-            List<String> nodeTypes = Arrays.asList("Entity", "技术", "组织");
-            List<String> relationshipTypes = Arrays.asList("掌握技术", "毕业院校", "工作单位", "所在地");
-            
-            databaseInfo.put("node_types", nodeTypes);
-            databaseInfo.put("relationship_types", relationshipTypes);
-            
-            List<Map<String, Object>> databases = Arrays.asList(databaseInfo);
             result.put("data", databases);
-            
         } catch (Exception e) {
             log.error("获取数据库列表失败: {}", e.getMessage());
             result.put("success", false);
             result.put("message", "获取数据库列表失败: " + e.getMessage());
+            result.put("data", Collections.emptyList());
         }
-        
         return ResponseEntity.ok(result);
     }
     
@@ -182,57 +166,17 @@ public class LLMController {
     @GetMapping("/workflows")
     public ResponseEntity<Map<String, Object>> getWorkflows() {
         Map<String, Object> result = new HashMap<>();
-        
         try {
+            List<Map<String, Object>> workflows = llmService.getAvailableWorkflows();
             result.put("success", true);
             result.put("message", "获取工作流列表成功");
-            
-            List<Map<String, Object>> workflows = new ArrayList<>();
-            
-            // 工作流1
-            Map<String, Object> workflow1 = new HashMap<>();
-            workflow1.put("name", "text2cypher_with_1_retry_and_output_check");
-            workflow1.put("type", "text2cypher_with_1_retry_and_output_check");
-            workflow1.put("description", "Text2Cypher with retry and output check workflow");
-            
-            Map<String, Object> params1 = new HashMap<>();
-            params1.put("timeout", 60);
-            params1.put("max_retries", 1);
-            workflow1.put("parameters", params1);
-            
-            // 工作流2
-            Map<String, Object> workflow2 = new HashMap<>();
-            workflow2.put("name", "naive_text2cypher");
-            workflow2.put("type", "naive_text2cypher");
-            workflow2.put("description", "Simple text to Cypher conversion");
-            
-            Map<String, Object> params2 = new HashMap<>();
-            params2.put("timeout", 30);
-            workflow2.put("parameters", params2);
-            
-            // 工作流3
-            Map<String, Object> workflow3 = new HashMap<>();
-            workflow3.put("name", "naive_text2cypher_with_1_retry");
-            workflow3.put("type", "naive_text2cypher_with_1_retry");
-            workflow3.put("description", "Simple text to Cypher with retry");
-            
-            Map<String, Object> params3 = new HashMap<>();
-            params3.put("timeout", 45);
-            params3.put("max_retries", 1);
-            workflow3.put("parameters", params3);
-            
-            workflows.add(workflow1);
-            workflows.add(workflow2);
-            workflows.add(workflow3);
-            
             result.put("data", workflows);
-            
         } catch (Exception e) {
             log.error("获取工作流列表失败: {}", e.getMessage());
             result.put("success", false);
             result.put("message", "获取工作流列表失败: " + e.getMessage());
+            result.put("data", Collections.emptyList());
         }
-        
         return ResponseEntity.ok(result);
     }
 } 

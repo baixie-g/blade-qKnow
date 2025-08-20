@@ -4,7 +4,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="tech.qiantong.qknow.module.system.ca.mapper.CaCertMapper">
 
-    <resultMap type="CaCert" id="CaCertResult">
+    <resultMap type="tech.qiantong.qknow.module.system.ca.domain.CaCert" id="CaCertResult">
         <result property="id"    column="id"    />
         <result property="name"    column="name"    />
         <result property="subjectId"    column="subject_id"    />
@@ -28,7 +28,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         select id, name, subject_id, subject_name, certificate, private_key, issuer, possessor, valid_time, valid_flag, del_flag, create_by, creator_id, create_time, update_by, update_time, remark from ca_cert
     </sql>
 
-    <select id="selectCaCertList" parameterType="CaCert" resultMap="CaCertResult">
+    <select id="selectCaCertList" parameterType="tech.qiantong.qknow.module.system.ca.domain.CaCert" resultMap="CaCertResult">
         <include refid="selectCaCertVo"/>
         <where>
             <if test="subjectId != null "> and subject_id = #{subjectId}</if>
@@ -60,7 +60,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </select>
 
-    <insert id="insertCaCert" parameterType="CaCert" useGeneratedKeys="true" keyProperty="id">
+    <insert id="insertCaCert" parameterType="tech.qiantong.qknow.module.system.ca.domain.CaCert" useGeneratedKeys="true" keyProperty="id">
         insert into ca_cert
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="name != null and name != ''">name,</if>
@@ -100,7 +100,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
          </trim>
     </insert>
 
-    <update id="updateCaCert" parameterType="CaCert">
+    <update id="updateCaCert" parameterType="tech.qiantong.qknow.module.system.ca.domain.CaCert">
         update ca_cert
         <trim prefix="SET" suffixOverrides=",">
             <if test="name != null and name != ''">name = #{name},</if>

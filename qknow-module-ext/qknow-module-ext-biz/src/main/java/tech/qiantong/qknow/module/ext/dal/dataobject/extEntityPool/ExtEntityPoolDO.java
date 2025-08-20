@@ -42,6 +42,9 @@ public class ExtEntityPoolDO extends BaseEntity {
     /** 段落索引 */
     private Integer paragraphIndex;
 
+    /** Neo4j数据源ID */
+    private Long datasourceId;
+
     /** 实体ID */
     private String entityId;
 

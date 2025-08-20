@@ -42,6 +42,9 @@ public class ExtUnstructTaskSaveReqVO extends BaseEntity {
 //    @NotNull(message = "发布状态不能为空")
     private Integer publishStatus;
 
+    @Schema(description = "Neo4j数据源ID", example = "1")
+    private Long datasourceId;
+
     @Schema(description = "发布时间", example = "")
 //    @NotNull(message = "发布时间不能为空")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

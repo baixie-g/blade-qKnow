@@ -179,12 +179,12 @@
           </el-select>
         </el-form-item>
         <el-form-item label="数据库">
-          <el-select v-model="settings.databaseName" placeholder="选择数据库">
+          <el-select v-model="settings.databaseId" placeholder="选择数据库">
             <el-option 
               v-for="db in availableDatabases" 
-              :key="db.name"
-              :label="db.name"
-              :value="db.name"
+              :key="db.id || db.name"
+              :label="db.name || db.database_name || db.id"
+              :value="db.id || db.name"
             />
           </el-select>
         </el-form-item>
@@ -251,7 +251,8 @@ const chatContentRef = ref(null)
 // 设置
 const settings = reactive({
   llmName: 'ark-model',
-  databaseName: 'neo4j',
+  databaseId: null,      // 新增：数据库ID（Python服务要求）
+  databaseName: 'neo4j', // 兼容：保留名称
   workflowType: 'text2cypher_with_1_retry_and_output_check',
   timeout: 60
 })
@@ -367,11 +368,7 @@ const loadAvailableOptions = async () => {
       availableLLMs.value = llmsRes.data
     }
     
-    if (Array.isArray(databasesRes)) {
-      availableDatabases.value = databasesRes
-    } else if (databasesRes && databasesRes.success && Array.isArray(databasesRes.data)) {
-      availableDatabases.value = databasesRes.data
-    }
+    availableDatabases.value = Array.isArray(databasesRes) ? databasesRes : []
     
     if (Array.isArray(workflowsRes)) {
       availableWorkflows.value = workflowsRes
@@ -390,11 +387,11 @@ const loadAvailableOptions = async () => {
     
     // 设置默认数据库
     if (availableDatabases.value.length > 0) {
-      const currentDbExists = availableDatabases.value.some(db => db.name === settings.databaseName)
-      if (!currentDbExists) {
-        settings.databaseName = availableDatabases.value[0].name
-        console.log('自动选择默认数据库:', settings.databaseName)
-      }
+      // 优先设置ID；若无ID则使用name
+      const firstDb = availableDatabases.value[0]
+      if (!settings.databaseId) settings.databaseId = firstDb.id || null
+      if (!settings.databaseName) settings.databaseName = firstDb.name || 'neo4j'
+      console.log('自动选择默认数据库:', { id: settings.databaseId, name: settings.databaseName })
     }
     
     // 设置默认工作流

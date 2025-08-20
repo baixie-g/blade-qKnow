@@ -3,6 +3,9 @@
     <div class="head-title">
       <div class="name">{{ taskInfo.name }}</div>
       <div class="btns">
+        <el-select v-model="selectedDatasourceId" placeholder="图数据库" style="width: 220px; margin-right: 8px;" @change="onDatasourceChange">
+          <el-option v-for="ds in datasourceOptions" :key="ds.id" :label="`${ds.name}(${ds.host}:${ds.port})`" :value="ds.id" />
+        </el-select>
         <el-button v-if="taskInfo.pageType != 0" icon="Back" @click="handleBack">返回</el-button>
         <!-- 结构化/非结构化 -->
         <el-button :disabled="graphData.nodes.length == 0" v-if="taskInfo.pageType != 0 && !releaseStatus" icon="Upload" type="primary" @click="handleRelease"> 发布 </el-button>
@@ -260,6 +263,7 @@ import { getTableDataByDataId } from "@/api/ext/extDatasource/datasource";
 import { getGraph, updateReleaseStatus, deleteNodeAttributeById, deleteRelationshipById, deleteNode } from "@/api/app/graph";
 // 概念列表
 import { listSchema } from "@/api/ext/extSchema/schema";
+import { listDatasource as listExtDatasource } from "@/api/ext/extDatasource/datasource";
 // 图标
 import { ChatDotRound } from "@element-plus/icons-vue";
 
@@ -275,8 +279,12 @@ const router = useRouter();
 const taskInfo = ref({ id: "", name: "图谱探索", pageType: "0" });
 let selectedIds = ref([]);
 
-// 聊天相关变量
-const chatVisible = ref(false);
+// 数据源下拉
+const datasourceOptions = ref([]);
+const selectedDatasourceId = ref(null);
+
+// 聊天相关变量（默认展开）
+const chatVisible = ref(true);
 
 // 切换聊天面板显示/隐藏
 const toggleChat = () => {
@@ -401,6 +409,12 @@ function getGraphData(params) {
   console.log("开始查询图谱数据，参数:", params);
   
   getGraph(params).then((response) => {
+    // 兼容路由切换导致的请求取消（拦截器返回 null）
+    if (!response) {
+      appLoading.value = false;
+      console.warn("图谱数据请求被取消或响应为空，已忽略本次结果。");
+      return;
+    }
     appLoading.value = false;
     console.log("图谱数据查询响应:", response);
     
@@ -737,14 +751,60 @@ onMounted(async () => {
     };
   }
   
-  console.log("查询参数:", params);
-  getGraphData(params);
-  
-  //根据taskId获取段落数据和文档
-  if (taskInfo.value.pageType == "2" || taskInfo.value.pageType == "0") {
-    getTextListAndDocList(params);
+  // 如果URL中带了datasourceId，透传给后端用于连接对应Neo4j
+  const dsId = router.currentRoute.value.query.datasourceId;
+  if (dsId) {
+    params.datasourceId = Number(dsId);
+    selectedDatasourceId.value = Number(dsId);
   }
+
+  console.log("查询参数(初始):", params);
+  
+  // 加载Neo4j数据源并在确定数据源后再查询图谱
+  loadDatasources(params);
 });
+// 加载数据源
+function loadDatasources(initialParams = null) {
+  listExtDatasource({ pageNum: 1, pageSize: 100 }).then((res) => {
+    const rows = res?.data?.rows || res?.data?.list || [];
+    datasourceOptions.value = rows.filter(d => d.type === 2 || d.type === '2' || d.name?.toLowerCase()?.includes('neo4j'));
+    // 若未选择且有可用数据源，则默认选择本地或第一个
+    if (!selectedDatasourceId.value && datasourceOptions.value.length) {
+      const local = datasourceOptions.value.find(d => d.host === '127.0.0.1') || datasourceOptions.value[0];
+      selectedDatasourceId.value = local.id;
+      // 更新路由参数
+      const q = { ...router.currentRoute.value.query, datasourceId: selectedDatasourceId.value };
+      router.replace({ path: router.currentRoute.value.path, query: q });
+    }
+
+    // 初次进入时，携带真实的数据源请求一次图谱
+    if (initialParams) {
+      const params = { ...initialParams };
+      if (selectedDatasourceId.value) params.datasourceId = Number(selectedDatasourceId.value);
+      getGraphData(params);
+      if (taskInfo.value.pageType == "2" || taskInfo.value.pageType == "0") {
+        getTextListAndDocList(params);
+      }
+    }
+  });
+}
+
+// 切换数据源
+function onDatasourceChange(val) {
+  const q = { ...router.currentRoute.value.query };
+  if (val) q.datasourceId = val; else delete q.datasourceId;
+  router.replace({ path: router.currentRoute.value.path, query: q });
+  // 重新查询
+  let params = {
+    entityType: taskInfo.value.pageType,
+    entityId: taskInfo.value.id,
+  };
+  if (taskInfo.value.pageType === "0" && (!taskInfo.value.id || taskInfo.value.id === "")) {
+    params = { entityType: 0, entityId: null };
+  }
+  if (val) params.datasourceId = Number(val);
+  getGraphData(params);
+}
 
 onBeforeUnmount(() => {
   console.log("组件将卸载，页面可能不再活动");

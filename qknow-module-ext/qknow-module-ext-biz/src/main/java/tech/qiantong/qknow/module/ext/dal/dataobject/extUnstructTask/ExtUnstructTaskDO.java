@@ -44,6 +44,9 @@ public class ExtUnstructTaskDO extends BaseEntity {
     /** 发布状态 */
     private Integer publishStatus;
 
+    /** Neo4j数据源ID */
+    private Long datasourceId;
+
     /** 发布时间 */
     private Date publishTime;
 

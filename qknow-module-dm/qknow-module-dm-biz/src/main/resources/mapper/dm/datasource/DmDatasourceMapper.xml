@@ -4,7 +4,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="tech.qiantong.qknow.module.dm.dal.mapper.datasource.DmDatasourceMapper">
 
-    <resultMap type="DmDatasourceDO" id="DaDatasourceResult">
+    <resultMap type="tech.qiantong.qknow.module.dm.dal.dataobject.datasource.DmDatasourceDO" id="DaDatasourceResult">
         <result property="id"    column="ID"    />
         <result property="datasourceName"    column="DATASOURCE_NAME"    />
         <result property="datasourceType"    column="DATASOURCE_TYPE"    />
@@ -29,7 +29,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         select ID, DATASOURCE_NAME, DATASOURCE_TYPE, DATASOURCE_CONFIG, IP, PORT, LIST_COUNT, SYNC_COUNT, DATA_SIZE, DESCRIPTION, VALID_FLAG, CREATE_BY, CREATOR_ID, CREATE_TIME, UPDATE_BY, UPDATER_ID, UPDATE_TIME, REMARK from dm_datasource
     </sql>
 
-    <select id="selectDaDatasourceList" parameterType="DmDatasourceDO" resultMap="DaDatasourceResult">
+    <select id="selectDaDatasourceList" parameterType="tech.qiantong.qknow.module.dm.dal.dataobject.datasource.DmDatasourceDO" resultMap="DaDatasourceResult">
         <include refid="selectDaDatasourceVo"/>
         <where>
             <if test="datasourceName != null  and datasourceName != ''"> and DATASOURCE_NAME like concat('%', #{datasourceName}, '%')</if>
@@ -50,7 +50,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where ID = #{id}
     </select>
 
-    <insert id="insertDaDatasource" parameterType="DmDatasourceDO">
+    <insert id="insertDaDatasource" parameterType="tech.qiantong.qknow.module.dm.dal.dataobject.datasource.DmDatasourceDO">
         insert into dm_datasource
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="id != null">ID,</if>
@@ -94,7 +94,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
          </trim>
     </insert>
 
-    <update id="updateDaDatasource" parameterType="DmDatasourceDO">
+    <update id="updateDaDatasource" parameterType="tech.qiantong.qknow.module.dm.dal.dataobject.datasource.DmDatasourceDO">
         update dm_datasource
         <trim prefix="SET" suffixOverrides=",">
             <if test="datasourceName != null">DATASOURCE_NAME = #{datasourceName},</if>

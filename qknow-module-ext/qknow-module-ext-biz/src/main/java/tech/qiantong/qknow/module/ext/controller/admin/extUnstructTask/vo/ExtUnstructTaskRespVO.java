@@ -42,6 +42,10 @@ public class ExtUnstructTaskRespVO implements Serializable {
     @Schema(description = "发布状态", example = "")
     private Integer publishStatus;
 
+    @Excel(name = "图数据库ID")
+    @Schema(description = "Neo4j数据源ID", example = "1")
+    private Long datasourceId;
+
     @Excel(name = "发布时间", width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
     @Schema(description = "发布时间", example = "")
     private Date publishTime;

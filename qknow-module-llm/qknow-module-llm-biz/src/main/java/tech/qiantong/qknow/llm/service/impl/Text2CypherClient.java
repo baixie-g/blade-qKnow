@@ -51,18 +51,19 @@ public class Text2CypherClient implements LLMService {
     @Override
     public LLMResponse executeQuery(String question, Map<String, Object> context) {
         // 使用默认配置调用新方法
-        return executeQuery(question, context, defaultLlmModel, defaultDatabase, defaultWorkflow, timeout / 1000);
+        return executeQuery(question, context, defaultLlmModel, null, defaultDatabase, defaultWorkflow, timeout / 1000);
     }
 
     @Override
     public LLMResponse executeQuery(String question, Map<String, Object> context,
-                                   String llmName, String databaseName, String workflowType, Integer timeout) {
+                                   String llmName, String databaseId, String databaseName, String workflowType, Integer timeout) {
         int attempt = 0;
         Exception lastException = null;
 
         // 使用传入的参数，如果为空则使用默认值
         String finalLlmName = (llmName != null && !llmName.trim().isEmpty()) ? llmName : defaultLlmModel;
         String finalDatabaseName = (databaseName != null && !databaseName.trim().isEmpty()) ? databaseName : defaultDatabase;
+        String finalDatabaseId = (databaseId != null && !databaseId.trim().isEmpty()) ? databaseId : null;
         String finalWorkflowType = (workflowType != null && !workflowType.trim().isEmpty()) ? workflowType : defaultWorkflow;
         int finalTimeout = (timeout != null && timeout > 0) ? timeout : (this.timeout / 1000);
 
@@ -74,7 +75,11 @@ public class Text2CypherClient implements LLMService {
                 // 构建请求到Python Text2Cypher API
                 Map<String, Object> requestBody = new HashMap<>();
                 requestBody.put("llm_name", finalLlmName);
-                requestBody.put("database_name", finalDatabaseName);
+                if (finalDatabaseId != null) {
+                    requestBody.put("database_id", finalDatabaseId);
+                } else {
+                    requestBody.put("database_name", finalDatabaseName);
+                }
                 requestBody.put("workflow_type", finalWorkflowType);
                 requestBody.put("input_text", question);
                 requestBody.put("context", context);
@@ -172,6 +177,50 @@ public class Text2CypherClient implements LLMService {
             }
         } catch (Exception e) {
             log.error("获取LLM模型列表失败", e);
+        }
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<Map<String, Object>> getAvailableWorkflows() {
+        try {
+            ResponseEntity<Map> response = restTemplate.getForEntity(
+                baseUrl + "/workflows",
+                Map.class
+            );
+
+            Map<String, Object> body = response.getBody();
+            if (body != null) {
+                Object data = body.get("data");
+                if (data instanceof List) {
+                    // noinspection unchecked
+                    return (List<Map<String, Object>>) data;
+                }
+            }
+        } catch (Exception e) {
+            log.error("获取工作流列表失败", e);
+        }
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<Map<String, Object>> getAvailableDatabases() {
+        try {
+            ResponseEntity<Map> response = restTemplate.getForEntity(
+                baseUrl + "/databases",
+                Map.class
+            );
+
+            Map<String, Object> body = response.getBody();
+            if (body != null) {
+                Object data = body.get("data");
+                if (data instanceof List) {
+                    // noinspection unchecked
+                    return (List<Map<String, Object>>) data;
+                }
+            }
+        } catch (Exception e) {
+            log.error("获取数据库列表失败", e);
         }
         return Collections.emptyList();
     }

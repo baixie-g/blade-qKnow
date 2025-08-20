@@ -31,6 +31,9 @@ public class ExtUnstructTaskPageReqVO extends PageParam {
     @Schema(description = "发布状态", example = "")
     private Integer publishStatus;
 
+    @Schema(description = "Neo4j数据源ID", example = "1")
+    private Long datasourceId;
+
     @Schema(description = "发布时间", example = "")
     private Date publishTime;
 

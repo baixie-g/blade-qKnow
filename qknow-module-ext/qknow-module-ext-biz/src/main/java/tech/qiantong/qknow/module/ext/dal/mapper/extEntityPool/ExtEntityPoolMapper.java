@@ -62,6 +62,7 @@ public interface ExtEntityPoolMapper extends BaseMapperX<ExtEntityPoolDO> {
                 .eqIfPresent(ExtEntityPoolDO::getWorkspaceId, reqVO.getWorkspaceId())
                 .eqIfPresent(ExtEntityPoolDO::getTaskId, reqVO.getTaskId())
                 .eqIfPresent(ExtEntityPoolDO::getDocId, reqVO.getDocId())
+                .eqIfPresent(ExtEntityPoolDO::getDatasourceId, reqVO.getDatasourceId())
                 .likeIfPresent(ExtEntityPoolDO::getEntityName, reqVO.getEntityName())
                 .eqIfPresent(ExtEntityPoolDO::getEntityType, reqVO.getEntityType())
                 .eqIfPresent(ExtEntityPoolDO::getStatus, reqVO.getStatus())

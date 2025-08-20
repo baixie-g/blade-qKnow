@@ -26,6 +26,11 @@ import tech.qiantong.qknow.neo4j.wrapper.Neo4jBuildWrapper;
 import tech.qiantong.qknow.neo4j.wrapper.Neo4jQueryWrapper;
 
 import javax.annotation.Resource;
+import org.neo4j.driver.AuthTokens;
+import org.neo4j.driver.Driver;
+import org.neo4j.driver.GraphDatabase;
+import tech.qiantong.qknow.module.app.dal.dataobject.ext.ExtDatasourceLiteDO;
+import tech.qiantong.qknow.module.app.dal.mapper.ext.ExtDatasourceLiteMapper;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -45,6 +50,9 @@ public class AppGraphServiceImpl implements AppGraphService {
     @Autowired
     private Neo4jClient neo4jClient;
 
+    @Resource
+    private ExtDatasourceLiteMapper extDatasourceLiteMapper;
+
     /**
      * 获取图谱数据
      *
@@ -53,13 +61,28 @@ public class AppGraphServiceImpl implements AppGraphService {
      */
     @Override
     public Map<String, Object> getGraph(AppGraphVO appGraphVO) {
+        // 如果传入了datasourceId，临时构建一个Neo4jClient用于该次查询
+        Neo4jClient effectiveClient = this.neo4jClient;
+        Driver tempDriver = null;
+        try {
+            if (appGraphVO.getDatasourceId() != null) {
+                ExtDatasourceLiteDO ds = extDatasourceLiteMapper.selectById(appGraphVO.getDatasourceId());
+                if (ds != null && ds.getHost() != null && ds.getPort() != null) {
+                    String uri = String.format("bolt://%s:%d", ds.getHost(), ds.getPort());
+                    String user = ds.getUsername() == null ? "neo4j" : ds.getUsername();
+                    String pwd = ds.getPassword() == null ? "neo4j" : ds.getPassword();
+                    tempDriver = GraphDatabase.driver(uri, AuthTokens.basic(user, pwd));
+                    effectiveClient = Neo4jClient.create(tempDriver);
+                }
+            }
+        } catch (Exception ignored) {}
         // 特殊处理：当entityType为0时，查询所有已发布的Entity标签实体（图谱探索模式）
         if (appGraphVO.getEntityType() != null && appGraphVO.getEntityType() == 0) {
             log.info("图谱探索模式：查询所有已发布的Entity标签实体");
             
             // 先测试查询所有Entity标签的节点
             String testQuery = "MATCH (n:Entity) RETURN n LIMIT 5";
-            List<Map<String, Object>> testResults = new ArrayList<>(neo4jClient.query(testQuery)
+            List<Map<String, Object>> testResults = new ArrayList<>(effectiveClient.query(testQuery)
                 .fetch()
                 .all());
             log.info("测试查询结果数量: {}", testResults.size());
@@ -68,7 +91,7 @@ public class AppGraphServiceImpl implements AppGraphService {
             if (testResults.isEmpty()) {
                 log.warn("未找到任何Entity标签的节点，尝试查询所有节点");
                 String allNodesQuery = "MATCH (n) RETURN labels(n) as labels, n.name as name LIMIT 10";
-                List<Map<String, Object>> allNodesResults = new ArrayList<>(neo4jClient.query(allNodesQuery)
+                List<Map<String, Object>> allNodesResults = new ArrayList<>(effectiveClient.query(allNodesQuery)
                     .fetch()
                     .all());
                 log.info("所有节点查询结果: {}", allNodesResults);
@@ -89,7 +112,7 @@ public class AppGraphServiceImpl implements AppGraphService {
             log.info("查询参数: {}", params);
             
             // 执行查询并手动构建结果
-            List<Map<String, Object>> results = new ArrayList<>(neo4jClient.query(cypherQuery)
+            List<Map<String, Object>> results = new ArrayList<>(effectiveClient.query(cypherQuery)
                 .bindAll(params)
                 .fetch()
                 .all());
@@ -209,6 +232,7 @@ public class AppGraphServiceImpl implements AppGraphService {
             log.info("返回实体数量: {}", entities.size());
             log.info("返回关系数量: {}", relationships.size());
             
+            closeDriverQuietly(tempDriver);
             return hashMap;
         } else {
             Neo4jQueryWrapper<DynamicEntity> build = new Neo4jQueryWrapper<>(DynamicEntity.class);
@@ -234,8 +258,14 @@ public class AppGraphServiceImpl implements AppGraphService {
             Map<String, Object> hashMap = Maps.newHashMap();
             hashMap.put("entities", dynamicEntityJSONObject.get("entities"));
             hashMap.put("relationships", dynamicEntityJSONObject.get("relationships"));
+            closeDriverQuietly(tempDriver);
             return hashMap;
         }
+    }
+
+    /** 关闭临时driver */
+    private void closeDriverQuietly(Driver driver) {
+        try { if (driver != null) driver.close(); } catch (Exception ignored) {}
     }
 
     @Override

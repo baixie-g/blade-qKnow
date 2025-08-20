@@ -28,6 +28,9 @@ public class ExtEntityPoolSaveReqVO {
     @NotNull(message = "段落索引不能为空")
     private Integer paragraphIndex;
 
+    @Schema(description = "Neo4j数据源ID", example = "1")
+    private Long datasourceId;
+
     @Schema(description = "实体ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "person_001")
     @NotBlank(message = "实体ID不能为空")
     private String entityId;

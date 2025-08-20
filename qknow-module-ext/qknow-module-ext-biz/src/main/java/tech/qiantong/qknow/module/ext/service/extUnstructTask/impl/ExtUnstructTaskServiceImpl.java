@@ -319,6 +319,7 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
                             .taskId(unstructTaskDO.getId())
                             .docId(extUnstructTaskDocRelDO.getDocId())
                             .paragraphIndex(i)
+                            .datasourceId(unstructTaskDO.getDatasourceId())
                             .entityId(newEntityId) // 使用带时间戳后缀的ID
                             .entityName(node.getString("name"))
                             .entityType(node.getString("type"))
@@ -374,6 +375,7 @@ public class ExtUnstructTaskServiceImpl extends ServiceImpl<ExtUnstructTaskMappe
                             .taskId(unstructTaskDO.getId())
                             .docId(extUnstructTaskDocRelDO.getDocId())
                             .paragraphIndex(i)
+                            .datasourceId(unstructTaskDO.getDatasourceId())
                             .sourceEntityId(newSourceId) // 使用带时间戳后缀的源实体ID
                             .targetEntityId(newTargetId) // 使用带时间戳后缀的目标实体ID
                             .relationshipType(relationship.getString("type"))

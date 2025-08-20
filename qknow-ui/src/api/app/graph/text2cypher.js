@@ -61,7 +61,12 @@ export function testLLMConnection(llmName) {
 
 // 获取所有可用的数据库
 export function getAvailableDatabases() {
-  return llmService.get("/llm/databases");
+  return llmService.get("/llm/databases").then(res => {
+    // 兼容两种返回结构：直接数组 或 { success, data: [...] }
+    if (Array.isArray(res)) return res
+    if (res && res.data && Array.isArray(res.data)) return res.data
+    return []
+  })
 }
 
 // 测试数据库连接
@@ -85,7 +90,9 @@ export function executeWorkflow(data) {
     question: data.input_text,
     context: data.context,
     llm_name: data.llm_name,
-    database_name: data.database_name,
+    // 兼容：优先传 database_id（Python服务用ID指定数据库）；如果没有则回退 name
+    database_id: data.database_id || data.databaseName || undefined,
+    database_name: data.database_name || undefined,
     workflow_type: data.workflow_type,
     timeout: data.timeout
   });
@@ -122,8 +129,9 @@ export function askQuestion(question, context = {}, settings = {}) {
     input_text: question,
     context: context,
     llm_name: settings.llmName,
-    database_name: settings.databaseName,
+    database_id: settings.databaseId, // 使用数据库ID指定
+    database_name: settings.databaseName, // 兼容旧字段
     workflow_type: settings.workflowType,
     timeout: settings.timeout
   });
-} 
+}

@@ -61,5 +61,20 @@ public class ExtDatasourceDO extends BaseEntity {
     @TableLogic
     private Boolean delFlag;
 
+    /** 模式/数据库实例名（用于 Oracle、PostgreSQL 等） */
+    @TableField("`schema`")
+    private String schema;
+
+    /** 数据源配置（JSON格式，存储额外的连接参数） */
+    private String connectionConfig;
+
+    /** 数据源来源：EXT-原有EXT数据源，UNIFIED-新统一数据源 */
+    private String source;
+
+    /** 原始数据源ID（用于迁移时关联） */
+    private Long originalId;
+
+    /** 备注 */
+    private String remark;
 
 }

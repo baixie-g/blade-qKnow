@@ -45,6 +45,7 @@ public interface ExtRelationshipPoolMapper extends BaseMapperX<ExtRelationshipPo
                 .eqIfPresent(ExtRelationshipPoolDO::getWorkspaceId, reqVO.getWorkspaceId())
                 .eqIfPresent(ExtRelationshipPoolDO::getTaskId, reqVO.getTaskId())
                 .eqIfPresent(ExtRelationshipPoolDO::getDocId, reqVO.getDocId())
+                .eqIfPresent(ExtRelationshipPoolDO::getDatasourceId, reqVO.getDatasourceId())
                 .likeIfPresent(ExtRelationshipPoolDO::getSourceEntityId, reqVO.getSourceEntityId())
                 .likeIfPresent(ExtRelationshipPoolDO::getTargetEntityId, reqVO.getTargetEntityId())
                 .likeIfPresent(ExtRelationshipPoolDO::getRelationshipType, reqVO.getRelationshipType())

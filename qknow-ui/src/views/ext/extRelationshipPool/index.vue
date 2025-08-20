@@ -48,6 +48,11 @@
           <el-option label="已拒绝" value="2" />
         </el-select>
       </el-form-item>
+      <el-form-item label="图数据库" prop="datasourceId">
+        <el-select v-model="queryParams.datasourceId" placeholder="请选择Neo4j数据源" clearable style="width: 220px">
+          <el-option v-for="ds in neo4jDatasourceList" :key="ds.id" :label="`${ds.name}(${ds.host}:${ds.port})`" :value="ds.id" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="创建时间" prop="createTime">
         <el-date-picker
           v-model="queryParams.createTime"
@@ -136,6 +141,7 @@
       <el-table-column label="源实体ID" align="center" prop="sourceEntityId" />
       <el-table-column label="目标实体ID" align="center" prop="targetEntityId" />
       <el-table-column label="关系类型" align="center" prop="relationshipType" />
+      <el-table-column label="图数据库" align="center" prop="datasourceId" width="120" />
       <el-table-column label="处理状态" align="center" prop="status">
         <template #default="scope">
           <el-tag v-if="scope.row.status === 0" type="warning">待处理</el-tag>
@@ -212,6 +218,11 @@
         <el-form-item label="关系类型" prop="relationshipType">
           <el-input v-model="form.relationshipType" placeholder="请输入关系类型" />
         </el-form-item>
+        <el-form-item label="图数据库" prop="datasourceId">
+          <el-select v-model="form.datasourceId" placeholder="请选择Neo4j数据源" style="width: 100%">
+            <el-option v-for="ds in neo4jDatasourceList" :key="ds.id" :label="`${ds.name}(${ds.host}:${ds.port})`" :value="ds.id" />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -254,11 +265,13 @@ import {
   processRelationship,
   batchProcessRelationships
 } from "@/api/ext/extRelationshipPool";
+import { listDatasource as listExtDatasource } from "@/api/ext/extDatasource/datasource";
 
 const { proxy } = getCurrentInstance();
 const { sys_normal_dict } = proxy.useDict("sys_normal_dict");
 
 const relationshipPoolList = ref([]);
+const neo4jDatasourceList = ref([]);
 const open = ref(false);
 const processOpen = ref(false);
 const loading = ref(true);
@@ -277,6 +290,7 @@ const data = reactive({
     pageSize: 10,
     workspaceId: null,
     taskId: null,
+    datasourceId: 1,
     sourceEntityId: null,
     targetEntityId: null,
     relationshipType: null,
@@ -319,6 +333,21 @@ function getList() {
   });
 }
 
+// 加载Neo4j数据源
+function loadNeo4jDatasources() {
+  const query = { pageNum: 1, pageSize: 100 };
+  listExtDatasource(query).then(res => {
+    const rows = res?.data?.rows || res?.data?.list || [];
+    neo4jDatasourceList.value = rows.filter(d => d.type === 2);
+    if (!queryParams.value.datasourceId && neo4jDatasourceList.value.length > 0) {
+      queryParams.value.datasourceId = neo4jDatasourceList.value[0].id || 1;
+    }
+    if (!form.value.datasourceId && queryParams.value.datasourceId) {
+      form.value.datasourceId = queryParams.value.datasourceId;
+    }
+  });
+}
+
 // 取消按钮
 function cancel() {
   open.value = false;
@@ -342,6 +371,7 @@ function reset() {
     sourceEntityId: null,
     targetEntityId: null,
     relationshipType: null,
+    datasourceId: queryParams.value.datasourceId || 1,
     status: 0,
     validFlag: true,
     delFlag: false,
@@ -392,6 +422,9 @@ function handleUpdate(row) {
   getRelationshipPool(id).then(response => {
     if (response.code === 200 && response.data) {
       form.value = response.data;
+      if (!form.value.datasourceId && queryParams.value.datasourceId) {
+        form.value.datasourceId = queryParams.value.datasourceId;
+      }
       open.value = true;
       title.value = "修改关系池";
     } else {
@@ -533,5 +566,6 @@ function handleExport() {
   }, `relationshipPool_${new Date().getTime()}.xlsx`)
 }
 
+loadNeo4jDatasources();
 getList();
 </script> 

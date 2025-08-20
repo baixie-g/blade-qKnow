@@ -27,6 +27,7 @@ import tech.qiantong.qknow.neo4j.enums.Neo4jLabelEnum;
 import tech.qiantong.qknow.neo4j.repository.DynamicRepository;
 import tech.qiantong.qknow.neo4j.wrapper.Neo4jBuildWrapper;
 import tech.qiantong.qknow.neo4j.wrapper.Neo4jQueryWrapper;
+import tech.qiantong.qknow.module.ext.service.neo4j.MultiDataSourceNeo4jManager;
 import tech.qiantong.qknow.common.utils.spring.SpringUtils;
 import org.springframework.data.neo4j.core.Neo4jTemplate;
 
@@ -60,6 +61,9 @@ public class ExtEntityPoolServiceImpl implements IExtEntityPoolService {
     
     @Resource
     private DynamicRepository dynamicRepository;
+    
+    @Resource
+    private MultiDataSourceNeo4jManager multiDataSourceNeo4jManager;
     
     @Resource
     private RestTemplate restTemplate;
@@ -366,6 +370,14 @@ public class ExtEntityPoolServiceImpl implements IExtEntityPoolService {
             requestBody.put("top_k", topK != null ? topK : 5);
             requestBody.put("include_scores", true);
             
+            // 添加数据库来源标识
+            if (entityPool.getDatasourceId() != null) {
+                requestBody.put("database_key", entityPool.getDatasourceId().toString());
+            } else {
+                // 如果没有指定数据源，使用默认值（本地Neo4j）
+                requestBody.put("database_key", "1");
+            }
+            
             // 设置请求头
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -434,7 +446,7 @@ public class ExtEntityPoolServiceImpl implements IExtEntityPoolService {
             entityPool.setProcessRemark(remark);
             entityPool.setProcessTime(new Date());
             
-            // 存入Neo4j
+            // 存入Neo4j - 根据数据源ID选择目标数据库
             saveEntityToNeo4j(entityPool);
             
             // 处理相关的关系
@@ -564,6 +576,13 @@ public class ExtEntityPoolServiceImpl implements IExtEntityPoolService {
                 throw new RuntimeException("实体类型为空");
             }
             
+            // 检查数据源ID
+            if (entityPool.getDatasourceId() == null) {
+                log.warn("实体没有指定数据源ID，使用默认数据源（本地Neo4j）");
+            } else {
+                log.info("实体将保存到数据源ID: {}", entityPool.getDatasourceId());
+            }
+            
             // 检查实体是否已存在
             try {
                 Neo4jQueryWrapper<DynamicEntity> queryWrapper = new Neo4jQueryWrapper<>(DynamicEntity.class);
@@ -631,11 +650,62 @@ public class ExtEntityPoolServiceImpl implements IExtEntityPoolService {
             String fullLabel = baseLabel + ":" + entityPool.getEntityType();
             log.info("使用标签: {}", fullLabel);
             
-            // 调用Neo4j API
-            dynamicRepository.mergeCreateNode(fullLabel, wrapper, mergeMap, propertiesMap);
+            // 调用Neo4j API - 根据数据源ID选择目标数据库
+            Long datasourceId = entityPool.getDatasourceId();
+            if (datasourceId != null) {
+                // 使用多数据源管理器保存到指定数据库
+                try {
+                    org.neo4j.driver.Driver driver = multiDataSourceNeo4jManager.getDriver(datasourceId);
+                    if (driver != null) {
+                        // 使用指定数据源的连接执行操作
+                        try (org.neo4j.driver.Session session = driver.session()) {
+                            // 构建Cypher语句
+                            StringBuilder cypher = new StringBuilder();
+                            cypher.append("MERGE (n:").append(fullLabel).append(" {");
+                            
+                            // 构建合并条件
+                            String mergeConditions = mergeMap.entrySet().stream()
+                                .map(entry -> entry.getKey() + ": $" + entry.getKey())
+                                .reduce((a, b) -> a + ", " + b)
+                                .orElse("");
+                            cypher.append(mergeConditions).append("}) ");
+                            
+                            // 构建设置属性
+                            if (!propertiesMap.isEmpty()) {
+                                cypher.append("SET n += $setProperties ");
+                            }
+                            
+                            cypher.append("RETURN id(n) as nodeId");
+                            
+                            // 构建参数
+                            Map<String, Object> parameters = new HashMap<>();
+                            parameters.putAll(mergeMap);
+                            parameters.put("setProperties", propertiesMap);
+                            
+                            // 执行Cypher
+                            org.neo4j.driver.Result result = session.run(cypher.toString(), parameters);
+                            org.neo4j.driver.Record record = result.single();
+                            Long nodeId = record.get("nodeId").asLong();
+                            
+                            log.info("实体已成功保存到指定数据源，数据源ID: {}, 节点ID: {}", datasourceId, nodeId);
+                        }
+                    } else {
+                        throw new RuntimeException("无法获取数据源连接，数据源ID: " + datasourceId);
+                    }
+                } catch (Exception e) {
+                    log.error("保存实体到指定数据源失败，数据源ID: {}, 回退到默认数据库", datasourceId, e);
+                    // 回退到默认数据库
+                    dynamicRepository.mergeCreateNode(fullLabel, wrapper, mergeMap, propertiesMap);
+                }
+            } else {
+                // 没有指定数据源，使用默认数据库
+                log.info("实体没有指定数据源，保存到默认Neo4j数据库");
+                dynamicRepository.mergeCreateNode(fullLabel, wrapper, mergeMap, propertiesMap);
+            }
             
             log.info("============ 实体已成功存入Neo4j ============");
             log.info("实体名称: {}", entityPool.getEntityName());
+            log.info("目标数据源ID: {}", entityPool.getDatasourceId() != null ? entityPool.getDatasourceId() : "默认");
             
         } catch (Exception e) {
             log.error("============ 实体存入Neo4j失败 ============");

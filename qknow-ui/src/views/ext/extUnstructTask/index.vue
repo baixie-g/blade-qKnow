@@ -106,6 +106,11 @@
                         {{ scope.row.publishBy || '-' }}
                     </template>
                 </el-table-column>
+                <el-table-column label="图数据库" align="center" prop="datasourceId" width="120">
+                    <template #default="scope">
+                        {{ formatDatasource(scope.row.datasourceId) }}
+                    </template>
+                </el-table-column>
                 <el-table-column v-if="getColumnVisibility(5)" label="发布时间" align="center" prop="publishTime"
                                  sortable="custom" :sort-orders="['descending', 'ascending']" width="180">
                     <template #default="scope">
@@ -211,6 +216,13 @@
                     </el-col>
                 </el-row>
                 <el-row :gutter="20">
+                  <el-col :span="12">
+                    <el-form-item label="图数据库" prop="datasourceId">
+                      <el-select v-model="form.datasourceId" placeholder="请选择Neo4j数据源" style="width: 100%">
+                        <el-option v-for="ds in neo4jDatasourceList" :key="ds.id" :label="`${ds.name}(${ds.host}:${ds.port})`" :value="ds.id" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
                   <el-col :span="24">
                     <el-form-item label="三元组" prop="relationIds">
                       <el-button type="primary" @click="addItem" plain>导入三元组</el-button>
@@ -277,6 +289,7 @@
         manualConsumeQueue
     } from "@/api/ext/extUnstructTask/unstructTask";
     import { getExtSchemaAllList } from "@/api/ext/extSchema/schema";
+    import { listDatasource as listExtDatasource } from "@/api/ext/extDatasource/datasource";
     import {getToken} from "@/utils/auth.js";
     import moment from 'moment';
     //选择文件 多选
@@ -291,6 +304,14 @@
     const unstructTaskList = ref([]);
     const visible = ref(false);
     const selectOptions = ref([]);
+    // Neo4j 数据源列表
+    const neo4jDatasourceList = ref([]);
+    function formatDatasource(id){
+      if(!id){return '-'}
+      const ds = neo4jDatasourceList.value.find(d=>d.id===id)
+      if(ds){return `${ds.name}(${ds.host}:${ds.port})`}
+      return `ID:${id}`
+    }
 
     // 列显隐信息
     const columns = ref([
@@ -417,6 +438,8 @@
         queryParams.value.isAsc = defaultSort.value.order;
         getList();
         getAllList();
+        // 加载可用的Neo4j数据源
+        loadNeo4jDatasources();
     });
 
     function addItem() {
@@ -435,6 +458,21 @@
           value: item.id,
           label: item.name,
         }));
+      });
+    }
+
+    // 加载Neo4j数据源
+    function loadNeo4jDatasources() {
+      const query = { pageNum: 1, pageSize: 100 }; // 按需分页
+      listExtDatasource(query).then(res => {
+        const rows = res?.data?.rows || res?.data?.list || [];
+        // 约定: type=2 为 Neo4j（如无字典约束则不过滤）
+        neo4jDatasourceList.value = rows.filter(d => d.type === 2 || d.type === '2' || d.name?.toLowerCase()?.includes('neo4j'));
+        // 默认选中本地数据源（host为127.0.0.1）或第一条
+        const local = neo4jDatasourceList.value.find(d => d.host === '127.0.0.1') || neo4jDatasourceList.value[0];
+        if (local && !form.value.datasourceId) {
+          form.value.datasourceId = local.id;
+        }
       });
     }
 
@@ -493,6 +531,7 @@
             publishTime: null,
             publisherId: null,
             publishBy: null,
+            datasourceId: null,
             validFlag: null,
             delFlag: null,
             createBy: null,

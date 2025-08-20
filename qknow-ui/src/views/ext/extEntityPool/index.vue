@@ -40,6 +40,11 @@
           <el-option label="已拒绝" value="2" />
         </el-select>
       </el-form-item>
+      <el-form-item label="图数据库" prop="datasourceId">
+        <el-select v-model="queryParams.datasourceId" placeholder="请选择Neo4j数据源" clearable style="width: 220px">
+          <el-option v-for="ds in neo4jDatasourceList" :key="ds.id" :label="`${ds.name}(${ds.host}:${ds.port})`" :value="ds.id" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="创建时间" prop="createTime">
         <el-date-picker
           v-model="queryParams.createTime"
@@ -159,6 +164,11 @@
           <el-tag v-if="scope.row.status === 0" type="warning">待处理</el-tag>
           <el-tag v-else-if="scope.row.status === 1" type="success">已确认</el-tag>
           <el-tag v-else-if="scope.row.status === 2" type="danger">已拒绝</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="图数据库" align="center" prop="datasourceId" width="120">
+        <template #default="scope">
+          {{ formatDatasource(scope.row.datasourceId) }}
         </template>
       </el-table-column>
       <el-table-column label="创建时间" align="center" prop="createTime" width="180">
@@ -286,6 +296,15 @@
                 格式：{"属性名":["值1","值2"],"属性名2":["值3"]}<br>
                 示例：{"毕业院校":["清华大学"],"工作单位":["字节跳动"],"职位":["研究员"]}
               </div>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="图数据库" prop="datasourceId">
+              <el-select v-model="form.datasourceId" placeholder="请选择Neo4j数据源" style="width: 100%">
+                <el-option v-for="ds in neo4jDatasourceList" :key="ds.id" :label="`${ds.name}(${ds.host}:${ds.port})`" :value="ds.id" />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -830,6 +849,7 @@
 
 <script setup name="EntityPool">
 import { ref, reactive, toRefs, getCurrentInstance, watch, nextTick } from 'vue';
+import { listDatasource as listExtDatasource } from "@/api/ext/extDatasource/datasource";
 import {
   listEntityPool,
   getEntityPool,
@@ -848,6 +868,7 @@ const { proxy } = getCurrentInstance();
 const { sys_normal_dict } = proxy.useDict("sys_normal_dict");
 
 const entityPoolList = ref([]);
+const neo4jDatasourceList = ref([]);
 const open = ref(false);
 const processOpen = ref(false);
 const disambiguationOpen = ref(false);
@@ -902,6 +923,7 @@ const form = ref({
   aliases: null,
   definition: null,
   attributes: null,
+  datasourceId: null,
   status: 0,
   processTime: null,
   processorId: null,
@@ -926,6 +948,7 @@ const queryParams = ref({
   taskId: null,
   entityName: null,
   entityType: null,
+  datasourceId: null,
   status: null,
   createTime: null,
 });
@@ -1059,6 +1082,28 @@ function getList() {
   });
 }
 
+function formatDatasource(id){
+  if(!id){return '-'}
+  const ds = neo4jDatasourceList.value.find(d=>d.id===id)
+  if(ds){return `${ds.name}(${ds.host}:${ds.port})`}
+  return `ID:${id}`
+}
+
+// 加载Neo4j数据源
+function loadNeo4jDatasources() {
+  const query = { pageNum: 1, pageSize: 100 };
+  listExtDatasource(query).then(res => {
+    const rows = res?.data?.rows || res?.data?.list || [];
+    neo4jDatasourceList.value = rows.filter(d => d.type === 2);
+    if (!queryParams.value.datasourceId && neo4jDatasourceList.value.length > 0) {
+      queryParams.value.datasourceId = neo4jDatasourceList.value[0].id || 1;
+    }
+    if (!form.value.datasourceId && queryParams.value.datasourceId) {
+      form.value.datasourceId = queryParams.value.datasourceId;
+    }
+  });
+}
+
 // 取消处理
 function cancelProcess() {
   processOpen.value = false;
@@ -1110,6 +1155,9 @@ function handleUpdate(row) {
   const id = row.id || ids.value;
   getEntityPool(id).then(response => {
     form.value = response.data;
+    if (!form.value.datasourceId && queryParams.value.datasourceId) {
+      form.value.datasourceId = queryParams.value.datasourceId;
+    }
     open.value = true;
     title.value = "修改实体池";
   });
@@ -1539,6 +1587,7 @@ function reset() {
     aliases: null,
     definition: null,
     attributes: null,
+    datasourceId: queryParams.value.datasourceId || null,
     status: 0,
     processTime: null,
     processorId: null,
@@ -1970,6 +2019,7 @@ function resetToSmartMerge() {
   }
 }
 
+loadNeo4jDatasources();
 getList();
 </script>
 

@@ -20,6 +20,9 @@ public class ExtRelationshipPoolPageReqVO extends PageParam {
     @Schema(description = "文档id", example = "1024")
     private Long docId;
 
+    @Schema(description = "Neo4j数据源ID", example = "1")
+    private Long datasourceId;
+
     @Schema(description = "源实体ID", example = "person_001")
     private String sourceEntityId;
 

@@ -113,6 +113,71 @@ public class ExtDatasourceServiceImpl extends ServiceImpl<ExtDatasourceMapper, E
         return AjaxResult.success(hashMap);
     }
 
+    @Override
+    public AjaxResult testConnection(Long id) {
+        ExtDatasourceDO ds = getById(id);
+        if (ds == null) {
+            return AjaxResult.error("数据源不存在");
+        }
+        try {
+            // 仅支持 Neo4j 测试
+            if (Objects.equals(ds.getType(), 2)) {
+                // 优先使用 Bolt 端口，若库中仍为 7474 也尝试连接
+                String host = ds.getHost();
+                int port = ds.getPort() != null ? ds.getPort().intValue() : 7687;
+                String user = ds.getUsername() == null ? "neo4j" : ds.getUsername();
+                String pwd = ds.getPassword() == null ? "neo4j" : ds.getPassword();
+
+                org.neo4j.driver.Driver driver = null;
+                try {
+                    String uri = String.format("bolt://%s:%d", host, port);
+                    driver = org.neo4j.driver.GraphDatabase.driver(uri, org.neo4j.driver.AuthTokens.basic(user, pwd));
+                    driver.verifyConnectivity();
+                    return AjaxResult.success("连接成功");
+                } finally {
+                    try { if (driver != null) driver.close(); } catch (Exception ignored) {}
+                }
+            }
+            return AjaxResult.error("不支持的类型，或请在DM页面测试关系型数据库");
+        } catch (Exception e) {
+            log.error("测试连接失败", e);
+            return AjaxResult.error("连接失败：" + e.getMessage());
+        }
+    }
+
+    // ====== 前端列表/CRUD 所需的方法实现 ======
+    public PageResult<ExtDatasourceDO> getExtDatasourcePage(ExtDatasourcePageReqVO pageReqVO) {
+        return extDatasourceMapper.selectPage(pageReqVO);
+    }
+
+    public Long createExtDatasource(ExtDatasourceSaveReqVO createReqVO) {
+        ExtDatasourceDO dictType = BeanUtils.toBean(createReqVO, ExtDatasourceDO.class);
+        extDatasourceMapper.insert(dictType);
+        return dictType.getId();
+    }
+
+    public int updateExtDatasource(ExtDatasourceSaveReqVO updateReqVO) {
+        ExtDatasourceDO updateObj = BeanUtils.toBean(updateReqVO, ExtDatasourceDO.class);
+        return extDatasourceMapper.updateById(updateObj);
+    }
+
+    public int removeExtDatasource(Collection<Long> idList) {
+        return extDatasourceMapper.deleteBatchIds(idList);
+    }
+
+    public ExtDatasourceDO getExtDatasourceById(Long id) {
+        return extDatasourceMapper.selectById(id);
+    }
+
+    public List<ExtDatasourceDO> getExtDatasourceList() {
+        return extDatasourceMapper.selectList();
+    }
+
+    public Map<Long, ExtDatasourceDO> getExtDatasourceMap() {
+        List<ExtDatasourceDO> list = extDatasourceMapper.selectList();
+        return list.stream().collect(Collectors.toMap(ExtDatasourceDO::getId, e -> e, (a, b) -> a));
+    }
+
 //    /**
 //     * 获取数据库表列表
 //     *

@@ -16,7 +16,7 @@ public interface LLMService {
      * 执行自然语言查询（使用自定义配置）
      */
     LLMResponse executeQuery(String question, Map<String, Object> context, 
-                           String llmName, String databaseName, String workflowType, Integer timeout);
+                           String llmName, String databaseId, String databaseName, String workflowType, Integer timeout);
     
     /**
      * 健康检查
@@ -27,4 +27,14 @@ public interface LLMService {
      * 获取可用模型列表
      */
     List<LLMModel> getAvailableModels();
+
+    /**
+     * 获取可用数据库列表（由Python Text2Cypher服务提供）
+     */
+    List<Map<String, Object>> getAvailableDatabases();
+
+    /**
+     * 获取可用工作流列表（由Python Text2Cypher服务提供）
+     */
+    List<Map<String, Object>> getAvailableWorkflows();
 } 

@@ -27,7 +27,7 @@
                         clearable
                     >
                         <el-option
-                            v-for="dict in datasource_type"
+                            v-for="dict in datasourceTypeOptions"
                             :key="dict.value"
                             :label="dict.label"
                             :value="dict.value"
@@ -62,6 +62,11 @@
                             @mousedown="(e) => e.preventDefault()"
                         >
                             <i class="iconfont-mini icon-xinzeng mr5"></i>新增
+                        </el-button>
+                    </el-col>
+                    <el-col :span="1.5">
+                        <el-button type="info" plain @click="handleUploadToNacos" @mousedown="(e) => e.preventDefault()">
+                            <i class="iconfont-mini icon-upload-cloud-line mr5"></i>上传到Nacos
                         </el-button>
                     </el-col>
                     <!--         <el-col :span="1.5">-->
@@ -151,7 +156,11 @@
                     prop="datasourceType"
                 >
                     <template #default="scope">
-                        <dict-tag :options="datasource_type" :value="scope.row.datasourceType" />
+                        <span v-if="scope.row.datasourceType === 1">MySQL</span>
+                        <span v-else-if="scope.row.datasourceType === 2">Neo4j</span>
+                        <span v-else-if="scope.row.datasourceType === 3">Oracle</span>
+                        <span v-else-if="scope.row.datasourceType === 4">PostgreSQL</span>
+                        <span v-else>{{ scope.row.datasourceType }}</span>
                     </template>
                 </el-table-column>
 
@@ -283,7 +292,7 @@
                         <el-form-item label="数据源类型" prop="datasourceType">
                             <el-select v-model="form.datasourceType" placeholder="请选择数据源类型">
                                 <el-option
-                                    v-for="dict in datasource_type"
+                                    v-for="dict in datasourceTypeOptions"
                                     :key="dict.value"
                                     :label="dict.label"
                                     :value="dict.value"
@@ -323,7 +332,7 @@
                     </el-col>
                     <el-col
                         :span="12"
-                        v-if="form.datasourceType !== null && form.datasourceType !== 'DM8'"
+                        v-if="form.datasourceType !== null && form.datasourceType !== 2"
                     >
                         <el-form-item label="模式" prop="sid">
                             <el-input v-model="form.sid" placeholder="请输入模式" />
@@ -433,7 +442,7 @@
 
                     <el-col
                         :span="12"
-                        v-if="form.datasourceType !== 'DM8' && form.datasourceType !== null"
+                        v-if="form.datasourceType !== null && form.datasourceType !== 2"
                     >
                         <el-form-item label="模式" prop="sid">
                             <div>
@@ -539,18 +548,22 @@
 </template>
 
 <script setup name="DaDatasource">
-    import {
-        listDaDatasource,
-        getDaDatasource,
-        clientsTest,
-        delDaDatasource,
-        addDaDatasource,
-        updateDaDatasource
-    } from '@/api/da/datasource/daDatasource';
+
+    import { listDatasource as listExtDatasource, delDatasource as delExtDatasource, getDatasource as getExtDatasource, addDatasource as addExtDatasource, updateDatasource as updateExtDatasource, getTestConnection as getExtTestConnection } from '@/api/ext/extDatasource/datasource';
     import { getToken } from '@/utils/auth.js';
+    import request from '@/utils/request';
 
     const { proxy } = getCurrentInstance();
     const { datasource_type } = proxy.useDict('datasource_type');
+    // 支持所有类型的数据源
+    const datasourceTypeOptions = computed(() => {
+        return [
+            { label: 'MySQL', value: 1 },
+            { label: 'Neo4j', value: 2 },
+            { label: 'Oracle', value: 3 },
+            { label: 'PostgreSQL', value: 4 }
+        ];
+    });
     const daDatasourceList = ref([]);
 
     // 列显隐信息
@@ -641,9 +654,32 @@
     /** 查询数据源列表 */
     function getList() {
         loading.value = true;
-        listDaDatasource(queryParams.value).then((response) => {
-            daDatasourceList.value = response.data.rows;
-            total.value = response.data.total;
+        // 直接使用 ext_datasource 接口，支持所有类型的数据源
+        listExtDatasource(queryParams.value).then((response) => {
+            const extPage = (response && response.data) ? response.data : {};
+            const extRows = Array.isArray(extPage.rows) ? extPage.rows : [];
+            // 将 EXT 列表映射为表格可识别的字段
+            const mappedExtRows = extRows.map(r => ({
+                id: r.id,
+                datasourceName: r.name,
+                datasourceType: r.type,
+                datasourceConfig: r.connectionConfig,
+                ip: r.host,
+                port: r.port,
+                description: r.remark,
+                createBy: r.createBy,
+                creatorId: r.creatorId,
+                createTime: r.createTime,
+                updateBy: r.updateBy,
+                updaterId: r.updaterId,
+                updateTime: r.updateTime,
+                remark: r.remark,
+                _source: 'EXT'
+            }));
+            daDatasourceList.value = mappedExtRows;
+            total.value = extPage.total || 0;
+            loading.value = false;
+        }).catch(() => {
             loading.value = false;
         });
     }
@@ -717,17 +753,32 @@
     function handleUpdate(row) {
         reset();
         const _id = row.id || ids.value;
-        getDaDatasource(_id).then((response) => {
-            form.value = response.data;
-            // 拆解 datasourceConfig
-            if (form.value.datasourceConfig) {
-                const config = JSON.parse(form.value.datasourceConfig);
-                console.log(config, 'config');
-                form.value.username = config.username;
-                form.value.password = config.password;
-                form.value.dbname = config.dbname;
-                form.value.sid = config.sid;
-            }
+        // 统一使用 ext_datasource 接口
+        getExtDatasource(_id).then((response) => {
+            const d = response.data || {};
+            // 将 EXT 字段映射回本页面表单字段
+            form.value = {
+                id: d.id,
+                datasourceName: d.name,
+                datasourceType: d.type,
+                datasourceConfig: d.connectionConfig,
+                ip: d.host,
+                port: d.port,
+                username: d.username,
+                password: d.password,
+                dbname: d.databaseName,
+                sid: d.schema,
+                description: d.remark,
+                validFlag: d.validFlag,
+                delFlag: d.delFlag,
+                createBy: d.createBy,
+                creatorId: d.creatorId,
+                createTime: d.createTime,
+                updateBy: d.updateBy,
+                updaterId: d.updaterId,
+                updateTime: d.updateTime,
+                remark: d.remark
+            };
             open.value = true;
             title.value = '修改数据源';
         });
@@ -737,63 +788,108 @@
     function handleDetail(row) {
         reset();
         const _id = row.id || ids.value;
-        getDaDatasource(_id).then((response) => {
-            form.value = response.data;
-            if (form.value.datasourceConfig) {
-                const config = JSON.parse(form.value.datasourceConfig);
-                form.value.username = config.username;
-                form.value.password = config.password;
-                form.value.dbname = config.dbname;
-                form.value.sid = config.sid;
-            }
+        // 统一使用 ext_datasource 接口
+        getExtDatasource(_id).then((response) => {
+            const d = response.data || {};
+            form.value = {
+                id: d.id,
+                datasourceName: d.name,
+                datasourceType: d.type,
+                datasourceConfig: d.connectionConfig,
+                ip: d.host,
+                port: d.port,
+                username: d.username,
+                password: d.password,
+                dbname: d.databaseName,
+                sid: d.schema,
+                description: d.remark,
+                validFlag: d.validFlag,
+                delFlag: d.delFlag,
+                createBy: d.createBy,
+                creatorId: d.creatorId,
+                createTime: d.createTime,
+                updateBy: d.updateBy,
+                updaterId: d.updaterId,
+                updateTime: d.updateTime,
+                remark: d.remark
+            };
             openDetail.value = true;
             title.value = '数据源详情';
         });
     }
 
-    /** 详情按钮操作 */
+    /** 测试连接按钮操作 */
     function handleTestConnection(row) {
-        reset();
         const _id = row.id || ids.value;
-        clientsTest(_id).then((response) => {
-            console.log(response);
-            proxy.$modal.msgSuccess(response.msg);
+        // 统一使用 ext_datasource 测试接口
+        getExtTestConnection(_id).then((res) => {
+            if (res && res.code === 200) {
+                proxy.$modal.msgSuccess(res.msg || '连接成功');
+            } else {
+                proxy.$modal.msgError(res.msg || '连接失败');
+            }
         });
+    }
+
+
+    // 触发后端上传当前数据源配置到 Nacos
+    async function handleUploadToNacos() {
+        try {
+            const res = await request({ url: '/ext/datasource/uploadToNacos', method: 'post' });
+            if (res && res.code === 200) {
+                proxy.$modal.msgSuccess(res.msg || '已上传到 Nacos');
+            } else {
+                proxy.$modal.msgError(res.msg || '上传失败');
+            }
+        } catch (e) {
+            proxy.$modal.msgError('上传失败：' + (e.message || '未知错误'));
+        }
     }
 
     /** 提交按钮 */
     function submitForm() {
         proxy.$refs['daDatasourceRef'].validate((valid) => {
-            if (valid) {
-                if (form.value.id != null) {
-                    form.value.datasourceConfig = JSON.stringify({
-                        username: form.value.username,
-                        password: form.value.password,
-                        dbname: form.value.dbname,
-                        sid: form.value.sid
-                    });
-                    updateDaDatasource(form.value)
-                        .then((response) => {
-                            proxy.$modal.msgSuccess('修改成功');
-                            open.value = false;
-                            getList();
-                        })
-                        .catch((error) => {});
-                } else {
-                    form.value.datasourceConfig = JSON.stringify({
-                        username: form.value.username,
-                        password: form.value.password,
-                        dbname: form.value.dbname,
-                        sid: form.value.sid
-                    });
-                    addDaDatasource(form.value)
-                        .then((response) => {
-                            proxy.$modal.msgSuccess('新增成功');
-                            open.value = false;
-                            getList();
-                        })
-                        .catch((error) => {});
-                }
+            if (!valid) return;
+            
+            // 统一使用 ext_datasource 接口
+            const payload = {
+                id: form.value.id,
+                name: form.value.datasourceName,
+                type: form.value.datasourceType,
+                host: form.value.ip,
+                port: form.value.port,
+                username: form.value.username,
+                password: form.value.password,
+                databaseName: form.value.dbname,
+                schema: form.value.sid,
+                status: 0,
+                remark: form.value.description,
+                connectionConfig: form.value.datasourceType !== 2 ? JSON.stringify({
+                    username: form.value.username,
+                    password: form.value.password,
+                    dbname: form.value.dbname,
+                    sid: form.value.sid
+                }) : null
+            };
+            
+            if (form.value.id != null) {
+                // 修改
+                updateExtDatasource(payload)
+                    .then(() => {
+                        proxy.$modal.msgSuccess('修改成功');
+                        open.value = false;
+                        getList();
+                    })
+                    .catch(() => {});
+            } else {
+                // 新增
+                addExtDatasource(payload)
+                    .then(() => {
+                        proxy.$modal.msgSuccess('新增成功');
+                        open.value = false;
+                        getList();
+                    })
+                    .catch(() => {});
             }
         });
     }
@@ -804,7 +900,8 @@
         proxy.$modal
             .confirm('是否确认删除数据连接名称为"' + row.datasourceName + '"的数据项？')
             .then(function () {
-                return delDaDatasource(_ids);
+                // 统一使用 ext_datasource 删除接口
+                return delExtDatasource(_ids);
             })
             .then(() => {
                 getList();

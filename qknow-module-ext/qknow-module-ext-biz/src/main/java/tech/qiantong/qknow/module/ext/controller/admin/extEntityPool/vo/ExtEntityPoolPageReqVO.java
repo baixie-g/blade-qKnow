@@ -22,6 +22,9 @@ public class ExtEntityPoolPageReqVO extends PageParam {
     @Schema(description = "文档id", example = "1024")
     private Long docId;
 
+    @Schema(description = "Neo4j数据源ID", example = "1")
+    private Long datasourceId;
+
     @Schema(description = "实体名称", example = "小明")
     private String entityName;
 

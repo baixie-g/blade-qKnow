@@ -23,6 +23,9 @@ public class ExtRelationshipPoolRespVO {
     @Schema(description = "段落索引", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     private Integer paragraphIndex;
 
+    @Schema(description = "Neo4j数据源ID", example = "1")
+    private Long datasourceId;
+
     @Schema(description = "源实体ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "person_001")
     private String sourceEntityId;
 

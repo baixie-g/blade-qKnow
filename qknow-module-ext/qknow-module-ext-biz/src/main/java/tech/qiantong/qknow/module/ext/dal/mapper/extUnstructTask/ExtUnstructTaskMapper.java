@@ -34,6 +34,7 @@ public interface ExtUnstructTaskMapper extends BaseMapperX<ExtUnstructTaskDO> {
                 .eqIfPresent(ExtUnstructTaskDO::getPublishTime, reqVO.getPublishTime())
                 .eqIfPresent(ExtUnstructTaskDO::getPublisherId, reqVO.getPublisherId())
                 .eqIfPresent(ExtUnstructTaskDO::getPublishBy, reqVO.getPublishBy())
+                .eqIfPresent(ExtUnstructTaskDO::getDatasourceId, reqVO.getDatasourceId())
                 .eqIfPresent(ExtUnstructTaskDO::getCreateTime, reqVO.getCreateTime())
                 .betweenIfPresent(ExtUnstructTaskDO::getCreateTime, reqVO.getParamByKey("beginCreateTime"), reqVO.getParamByKey("endCreateTime"))
                 // 如果 reqVO.getName() 不为空，则添加 name 的精确匹配条件（name = '<name>'）
