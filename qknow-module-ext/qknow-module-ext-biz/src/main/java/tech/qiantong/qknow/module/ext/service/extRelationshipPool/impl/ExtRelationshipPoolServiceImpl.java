@@ -242,7 +242,7 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
                 if (sourceEntity != null && targetEntity != null && 
                     sourceEntity.getStatus() == 1 && targetEntity.getStatus() == 1) {
                     log.info("============ 两个实体都已确认，开始创建关系 ============");
-                    // 两个实体都已确认，可以创建关系
+                    // 两个实体都已确认，可以创建关系（严格：成功后再更新状态）
                     saveRelationshipToNeo4j(relationshipPool, sourceEntity, targetEntity);
                     log.info("关系确认成功，已存入Neo4j，关系ID: {}", id);
                 } else {
@@ -260,17 +260,22 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
             }
         }
         
-        // 只有在确认成功或拒绝时才更新数据库状态
-        ExtRelationshipPoolDO updateObj = new ExtRelationshipPoolDO();
-        updateObj.setId(id);
-        updateObj.setStatus(status);
-        updateObj.setProcessRemark(remark);
-        updateObj.setProcessTime(new Date());
-        // TODO: 设置处理人信息，需要从当前登录用户获取
-        // updateObj.setProcessorId(getUserId());
-        // updateObj.setProcessBy(getNickName());
-        
-        extRelationshipPoolMapper.updateById(updateObj);
+        // 只有在确认成功（已完成写入）或拒绝时才更新数据库状态
+        if (status == 1) {
+            ExtRelationshipPoolDO updateObj = new ExtRelationshipPoolDO();
+            updateObj.setId(id);
+            updateObj.setStatus(1);
+            updateObj.setProcessRemark(remark);
+            updateObj.setProcessTime(new Date());
+            extRelationshipPoolMapper.updateById(updateObj);
+        } else if (status == 2) {
+            ExtRelationshipPoolDO updateObj = new ExtRelationshipPoolDO();
+            updateObj.setId(id);
+            updateObj.setStatus(2);
+            updateObj.setProcessRemark(remark);
+            updateObj.setProcessTime(new Date());
+            extRelationshipPoolMapper.updateById(updateObj);
+        }
         
         log.info("============ 关系处理完成 ============");
         return AjaxResult.success("处理成功");
@@ -470,77 +475,44 @@ public class ExtRelationshipPoolServiceImpl implements IExtRelationshipPoolServi
             String label = "Entity";
             Neo4jBuildWrapper<DynamicEntity> wrapper = new Neo4jBuildWrapper<>(DynamicEntity.class);
             
-            // 使用mergeRelationship方法创建关系 - 根据数据源ID选择目标数据库
+            // 使用严格的数据源路由：必须有 datasourceId，且连接成功，不回退默认库
             Long datasourceId = relationship.getDatasourceId();
-            if (datasourceId != null) {
-                // 使用多数据源管理器保存到指定数据库
-                try {
-                    org.neo4j.driver.Driver driver = multiDataSourceNeo4jManager.getDriver(datasourceId);
-                    if (driver != null) {
-                        // 使用指定数据源的连接执行操作
-                        try (org.neo4j.driver.Session session = driver.session()) {
-                            // 构建Cypher语句
-                            StringBuilder cypher = new StringBuilder();
-                            cypher.append("MATCH (a:").append(label).append(" {");
-                            
-                            // 源节点匹配条件
-                            String sourceConditions = sourceNodeMap.entrySet().stream()
-                                .map(entry -> entry.getKey() + ": $" + entry.getKey())
-                                .reduce((a, b) -> a + ", " + b)
-                                .orElse("");
-                            cypher.append(sourceConditions).append("}) ");
-                            
-                            cypher.append("MATCH (b:").append(label).append(" {");
-                            
-                            // 目标节点匹配条件
-                            String targetConditions = targetNodeMap.entrySet().stream()
-                                .map(entry -> "b." + entry.getKey() + ": $" + entry.getKey())
-                                .reduce((a, b) -> a + ", " + b)
-                                .orElse("");
-                            cypher.append(targetConditions).append("}) ");
-                            
-                            cypher.append("MERGE (a)-[r:").append(relationship.getRelationshipType()).append("]->(b) ");
-                            
-                            if (!relationshipProperties.isEmpty()) {
-                                cypher.append("SET r += $relationshipProps ");
-                            }
-                            
-                            cypher.append("RETURN id(r) as relationshipId");
-                            
-                            // 构建参数
-                            Map<String, Object> parameters = new HashMap<>();
-                            parameters.putAll(sourceNodeMap);
-                            parameters.putAll(targetNodeMap);
-                            parameters.put("relationshipProps", relationshipProperties);
-                            
-                            // 执行Cypher
-                            org.neo4j.driver.Result result = session.run(cypher.toString(), parameters);
-                            org.neo4j.driver.Record record = result.single();
-                            Long relationshipId = record.get("relationshipId").asLong();
-                            
-                            log.info("关系已成功保存到指定数据源，数据源ID: {}, 关系ID: {}", datasourceId, relationshipId);
-                        }
-                    } else {
-                        throw new RuntimeException("无法获取数据源连接，数据源ID: " + datasourceId);
-                    }
-                } catch (Exception e) {
-                    log.error("保存关系到指定数据源失败，数据源ID: {}, 回退到默认数据库", datasourceId, e);
-                    // 回退到默认数据库
-                    dynamicRepository.mergeRelationship(label, wrapper, sourceNodeMap, targetNodeMap, 
-                        relationship.getRelationshipType(), relationshipProperties);
+            if (datasourceId == null) {
+                throw new RuntimeException("关系缺少数据源ID，无法写入目标数据库");
+            }
+
+            org.neo4j.driver.Driver driver = multiDataSourceNeo4jManager.getDriver(datasourceId);
+            if (driver == null) {
+                throw new RuntimeException("无法获取数据源连接，数据源ID: " + datasourceId);
+            }
+
+            try (org.neo4j.driver.Session session = driver.session()) {
+                // 构建Cypher语句：使用 WHERE 子句，避免在花括号中写 b.id 这类非法属性键
+                StringBuilder cypher = new StringBuilder();
+                cypher.append("MATCH (a:").append(label).append(") WHERE a.id = $sourceId ");
+                cypher.append("MATCH (b:").append(label).append(") WHERE b.id = $targetId ");
+                cypher.append("MERGE (a)-[r:").append(relationship.getRelationshipType()).append("]->(b) ");
+                if (!relationshipProperties.isEmpty()) {
+                    cypher.append("SET r += $relationshipProps ");
                 }
-            } else {
-                // 没有指定数据源，使用默认数据库
-                log.info("关系没有指定数据源，保存到默认Neo4j数据库");
-                dynamicRepository.mergeRelationship(label, wrapper, sourceNodeMap, targetNodeMap, 
-                    relationship.getRelationshipType(), relationshipProperties);
+                cypher.append("RETURN id(r) as relationshipId");
+
+                Map<String, Object> parameters = new HashMap<>();
+                parameters.put("sourceId", sourceEntity.getEntityId());
+                parameters.put("targetId", targetEntity.getEntityId());
+                parameters.put("relationshipProps", relationshipProperties);
+
+                org.neo4j.driver.Result result = session.run(cypher.toString(), parameters);
+                org.neo4j.driver.Record record = result.single();
+                Long relationshipId = record.get("relationshipId").asLong();
+                log.info("关系已成功保存到指定数据源，数据源ID: {}, 关系ID: {}", datasourceId, relationshipId);
             }
             
             log.info("============ 关系已成功存入Neo4j ============");
             log.info("关系类型: {}", relationship.getRelationshipType());
             log.info("源实体: {} ({})", sourceEntity.getEntityName(), sourceEntity.getEntityId());
             log.info("目标实体: {} ({})", targetEntity.getEntityName(), targetEntity.getEntityId());
-            log.info("目标数据源ID: {}", relationship.getDatasourceId() != null ? relationship.getDatasourceId() : "默认");
+            log.info("目标数据源ID: {}", relationship.getDatasourceId() != null ? relationship.getDatasourceId() : "缺失");
             
         } catch (Exception e) {
             log.error("============ 关系存入Neo4j失败 ============");

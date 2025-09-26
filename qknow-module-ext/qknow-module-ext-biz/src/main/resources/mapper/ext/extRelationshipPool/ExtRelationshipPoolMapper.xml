@@ -5,13 +5,13 @@
     <!-- 批量插入关系 -->
     <insert id="insertBatch" parameterType="java.util.List">
         INSERT INTO ext_relationship_pool (
-            workspace_id, task_id, doc_id, paragraph_index, source_entity_id, target_entity_id,
+            workspace_id, task_id, doc_id, paragraph_index, datasource_id, source_entity_id, target_entity_id,
             relationship_type, status, valid_flag, del_flag,
             create_by, creator_id, create_time, update_by, updater_id, update_time, remark
         ) VALUES
         <foreach collection="list" item="item" separator=",">
             (
-                #{item.workspaceId}, #{item.taskId}, #{item.docId}, #{item.paragraphIndex},
+                #{item.workspaceId}, #{item.taskId}, #{item.docId}, #{item.paragraphIndex}, #{item.datasourceId},
                 #{item.sourceEntityId}, #{item.targetEntityId}, #{item.relationshipType},
                 #{item.status}, #{item.validFlag}, #{item.delFlag},
                 #{item.createBy}, #{item.creatorId}, #{item.createTime},

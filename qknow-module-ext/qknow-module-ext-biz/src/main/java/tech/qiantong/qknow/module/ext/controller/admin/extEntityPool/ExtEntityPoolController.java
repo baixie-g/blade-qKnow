@@ -23,6 +23,8 @@ import tech.qiantong.qknow.module.ext.controller.admin.extEntityPool.vo.ExtEntit
 import tech.qiantong.qknow.module.ext.convert.extEntityPool.ExtEntityPoolConvert;
 import tech.qiantong.qknow.module.ext.dal.dataobject.extEntityPool.ExtEntityPoolDO;
 import tech.qiantong.qknow.module.ext.service.extEntityPool.IExtEntityPoolService;
+import tech.qiantong.qknow.module.ext.dal.dataobject.extDatasource.ExtDatasourceDO;
+import tech.qiantong.qknow.module.ext.service.extDatasource.IExtDatasourceService;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
@@ -48,6 +50,9 @@ public class ExtEntityPoolController extends BaseController {
 
     @Resource
     private IExtEntityPoolService extEntityPoolService;
+
+    @Resource
+    private IExtDatasourceService extDatasourceService;
 
     /**
      * 查询实体池列表
@@ -322,6 +327,39 @@ public class ExtEntityPoolController extends BaseController {
             return CommonResult.success(result.get("data"));
         } else {
             return CommonResult.error(500, result.get("msg").toString());
+        }
+    }
+
+    /**
+     * 测试Neo4j连接
+     *
+     * @param datasourceId 数据源ID
+     * @return 连接测试结果
+     */
+    @PostMapping("/testNeo4jConnection")
+    @Operation(summary = "测试Neo4j连接")
+    public AjaxResult testNeo4jConnection(@RequestParam("datasourceId") Long datasourceId) {
+        try {
+            log.info("开始测试数据源ID {} 的Neo4j连接...", datasourceId);
+            
+            // 获取数据源信息
+            ExtDatasourceDO datasource = extDatasourceService.getExtDatasourceById(datasourceId);
+            if (datasource == null) {
+                return AjaxResult.error("数据源不存在，ID: " + datasourceId);
+            }
+            
+            // 测试连接
+            boolean isConnected = extEntityPoolService.testNeo4jConnection(datasourceId);
+            
+            if (isConnected) {
+                return AjaxResult.success("Neo4j连接测试成功", datasource);
+            } else {
+                return AjaxResult.error("Neo4j连接测试失败");
+            }
+            
+        } catch (Exception e) {
+            log.error("测试Neo4j连接时出错: {}", e.getMessage(), e);
+            return AjaxResult.error("测试Neo4j连接时出错: " + e.getMessage());
         }
     }
 } 

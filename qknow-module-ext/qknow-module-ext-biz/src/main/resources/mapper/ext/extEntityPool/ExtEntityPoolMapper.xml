@@ -8,6 +8,7 @@
         <result column="task_id" property="taskId"/>
         <result column="doc_id" property="docId"/>
         <result column="paragraph_index" property="paragraphIndex"/>
+        <result column="datasource_id" property="datasourceId"/>
         <result column="entity_id" property="entityId"/>
         <result column="entity_name" property="entityName"/>
         <result column="entity_type" property="entityType"/>
@@ -31,7 +32,7 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, workspace_id, task_id, doc_id, paragraph_index, entity_id, entity_name, entity_type,
+        id, workspace_id, task_id, doc_id, paragraph_index, datasource_id, entity_id, entity_name, entity_type,
         aliases, definition, attributes, status, process_time, processor_id, process_by, process_remark,
         valid_flag, del_flag, create_by, creator_id, create_time, update_by, updater_id, update_time, remark
     </sql>
@@ -59,18 +60,21 @@
         <if test="status != null">
             AND status = #{status}
         </if>
+        <if test="datasourceId != null">
+            AND datasource_id = #{datasourceId}
+        </if>
         ORDER BY id DESC
     </select>
 
     <insert id="insertBatch" parameterType="java.util.List">
         INSERT INTO ext_entity_pool (
-            workspace_id, task_id, doc_id, paragraph_index, entity_id, entity_name, entity_type,
+            workspace_id, task_id, doc_id, paragraph_index, datasource_id, entity_id, entity_name, entity_type,
             aliases, definition, attributes, status, valid_flag, del_flag,
             create_by, creator_id, create_time, update_by, updater_id, update_time
         ) VALUES
         <foreach collection="list" item="item" separator=",">
             (
-                #{item.workspaceId}, #{item.taskId}, #{item.docId}, #{item.paragraphIndex},
+                #{item.workspaceId}, #{item.taskId}, #{item.docId}, #{item.paragraphIndex}, #{item.datasourceId},
                 #{item.entityId}, #{item.entityName}, #{item.entityType}, #{item.aliases},
                 #{item.definition}, #{item.attributes}, #{item.status}, #{item.validFlag}, #{item.delFlag},
                 #{item.createBy}, #{item.creatorId}, #{item.createTime}, #{item.updateBy}, #{item.updaterId}, #{item.updateTime}

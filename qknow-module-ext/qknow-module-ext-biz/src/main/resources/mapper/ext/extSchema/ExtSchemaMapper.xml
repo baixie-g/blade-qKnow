@@ -27,11 +27,11 @@
     <select id="getExtSchemaAllList" parameterType="tech.qiantong.qknow.module.ext.dal.dataobject.extSchema.ExtSchemaDO" resultMap="ExtSchemaResult">
         <include refid="selectExtSchemaVo"/>
         <where>
+            and valid_flag = 1 and del_flag = 0
             <if test="workspaceId != null "> and workspace_id = #{workspaceId}</if>
             <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
             <if test="description != null  and description != ''"> and description = #{description}</if>
             <if test="createTime != null "> and create_time = #{createTime}</if>
-            <if test="delFlag != null"> and del_flag = #{delFlag}</if>
         </where>
     </select>
 </mapper>

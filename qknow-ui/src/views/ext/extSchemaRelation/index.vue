@@ -424,12 +424,18 @@ function getList() {
 
 /** 查询概念全部数据 */
 function getAllList() {
-  getExtSchemaAllList().then(response => {
-    console.log(response.data,'response.data')
+  // 设置工作区ID为1001（根据数据库中的实际值）
+  const params = { workspaceId: 1001 };
+  getExtSchemaAllList(params).then(response => {
+    console.log('获取实体类型响应:', response);
+    console.log('响应数据:', response.data);
     selectOptions.value = response.data.map(item => ({
       value: item.id,
       label: item.name,
     }));
+    console.log('选择选项:', selectOptions.value);
+  }).catch(error => {
+    console.error('获取实体类型失败:', error);
   });
 }
 

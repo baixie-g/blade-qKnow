@@ -84,5 +84,27 @@ export default [
         meta: { title: '个人中心', icon: 'user' }
       }
     ]
+  },
+  // 提示词管理路由
+  {
+    path: '/llm',
+    component: Layout,
+    redirect: '/llm/prompts',
+    name: 'LLM',
+    meta: { title: '提示词管理', icon: 'edit' },
+    children: [
+      {
+        path: 'prompts',
+        component: () => import('@/views/llm/prompts/index.vue'),
+        name: 'Prompts',
+        meta: { title: '提示词模板', icon: 'edit' }
+      },
+      {
+        path: 'types',
+        component: () => import('@/views/llm/types/index.vue'),
+        name: 'PromptTypes',
+        meta: { title: '提示词类型', icon: 'list' }
+      }
+    ]
   }
 ]

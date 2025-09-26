@@ -1,0 +1,5 @@
+# LLM模块配置
+llm:
+  prompts:
+    # 8003服务基础地址
+    base-url: http://localhost:8003

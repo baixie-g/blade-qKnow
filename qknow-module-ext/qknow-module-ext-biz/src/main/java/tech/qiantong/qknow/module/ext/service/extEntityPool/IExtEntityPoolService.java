@@ -11,6 +11,7 @@ import tech.qiantong.qknow.module.ext.controller.admin.extEntityPool.vo.ExtEntit
 import tech.qiantong.qknow.module.ext.dal.dataobject.extEntityPool.ExtEntityPoolDO;
 
 import java.util.Map;
+import tech.qiantong.qknow.module.ext.dal.dataobject.extDatasource.ExtDatasourceDO;
 
 /**
  * 实体池 Service 接口
@@ -164,4 +165,20 @@ public interface IExtEntityPoolService {
      * @return 合并结果
      */
     AjaxResult mergeEntityInfo(Long entityPoolId, String candidateId, List<Map<String, Object>> mergeFields, String remark);
+
+    /**
+     * 测试Neo4j连接
+     *
+     * @param datasourceId 数据源ID
+     * @return 连接测试结果
+     */
+    boolean testNeo4jConnection(Long datasourceId);
+
+    /**
+     * 根据ID获取数据源信息
+     *
+     * @param datasourceId 数据源ID
+     * @return 数据源信息
+     */
+    ExtDatasourceDO getExtDatasourceById(Long datasourceId);
 } 

@@ -42,6 +42,8 @@ public class MultiDataSourceNeo4jManager {
             return null;
         }
 
+        log.info("开始获取数据源ID {} 的Neo4j连接...", datasourceId);
+
         // 检查缓存中是否已有连接
         Driver cachedDriver = driverCache.get(datasourceId);
         if (cachedDriver != null && isConnectionValid(cachedDriver)) {
@@ -51,11 +53,16 @@ public class MultiDataSourceNeo4jManager {
 
         // 创建新连接
         try {
+            log.info("缓存中没有有效连接，开始创建新连接...");
             ExtDatasourceDO datasource = extDatasourceService.getExtDatasourceById(datasourceId);
             if (datasource == null) {
                 log.error("数据源不存在，ID: {}", datasourceId);
                 return null;
             }
+
+            log.info("获取到数据源信息: 名称={}, 类型={}, 主机={}, 端口={}, 用户名={}", 
+                    datasource.getName(), datasource.getType(), datasource.getHost(), 
+                    datasource.getPort(), datasource.getUsername());
 
             if (datasource.getType() != 2) { // 2表示Neo4j
                 log.error("数据源类型不是Neo4j，ID: {}, 类型: {}", datasourceId, datasource.getType());
@@ -64,14 +71,17 @@ public class MultiDataSourceNeo4jManager {
 
             // 构建连接URI
             String uri = String.format("neo4j://%s:%d", datasource.getHost(), datasource.getPort());
+            log.info("构建Neo4j连接URI: {}", uri);
             
             // 创建Driver
+            log.info("开始创建Neo4j Driver...");
             Driver driver = GraphDatabase.driver(
                 uri, 
                 AuthTokens.basic(datasource.getUsername(), datasource.getPassword())
             );
 
             // 测试连接
+            log.info("开始测试Neo4j连接...");
             try (org.neo4j.driver.Session session = driver.session()) {
                 session.run("RETURN 1");
                 log.info("Neo4j连接测试成功，数据源ID: {}, URI: {}", datasourceId, uri);
@@ -79,11 +89,12 @@ public class MultiDataSourceNeo4jManager {
 
             // 缓存连接
             driverCache.put(datasourceId, driver);
+            log.info("Neo4j连接已缓存，数据源ID: {}", datasourceId);
             
             return driver;
 
         } catch (Exception e) {
-            log.error("创建Neo4j连接失败，数据源ID: {}", datasourceId, e);
+            log.error("创建Neo4j连接失败，数据源ID: {}, 错误详情: {}", datasourceId, e.getMessage(), e);
             return null;
         }
     }
